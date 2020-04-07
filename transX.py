@@ -42,6 +42,9 @@ class TransX:
         self.ent_transfer4d = None
         self.rel_transfer4d = None
 
+        # 4transH
+        self.normal_vector4h = None
+
         self.init_embedding()  # 初始词嵌入
         self.init_train()  # 初始化训练步骤
         # 评估操作
@@ -78,6 +81,18 @@ class TransX:
             self.rel_transfer4d = tf.get_variable(name="rel_transfer4d",
                                                   shape=[self.kg.n_entity, self.embedding_dim],
                                                   initializer=tf.random_uniform_initializer(-bound, bound))
+        elif self.name == 'transh':
+            bound = 6 / math.sqrt(self.embedding_dim)
+            self.entity_embedding = tf.get_variable(name="entity_embedding",
+                                                    shape=[self.kg.n_entity, self.embedding_dim],
+                                                    initializer=tf.random_uniform_initializer(-bound, bound))
+
+            self.relation_embedding = tf.get_variable(initializer=tf.random_uniform_initializer(-bound, bound),
+                                                      shape=[self.kg.n_relation, self.embedding_dim],
+                                                      name="relation_embedding")
+            self.normal_vector4h = tf.get_variable(name="normal_vector",
+                                                 shape=[self.kg.n_entity, self.embedding_dim],
+                                                 initializer=tf.random_uniform_initializer(-bound, bound))
 
     def init_train(self):
         # 正向传播 计算损失 训练步骤
@@ -131,6 +146,17 @@ class TransX:
 
             neg_head = self.cal4transD(neg_head, neg_head_transd, neg_rel_transd)
             neg_tail = self.cal4transD(neg_tail, neg_tail_transd, neg_rel_transd)
+        elif self.name == 'transh':
+            print('TransH Called.')
+            pos_norm = tf.nn.embedding_lookup(self.normal_vector4h, pos_triple[:, 1])
+            neg_norm = tf.nn.embedding_lookup(self.normal_vector4h, neg_triple[:, 1])
+
+            pos_head = self.cal4transH(pos_head, pos_norm)
+            pos_tail = self.cal4transH(pos_tail, pos_norm)
+            neg_head = self.cal4transH(neg_head, neg_norm)
+            neg_tail = self.cal4transH(neg_tail, neg_norm)
+
+
 
         # 距离维度 [1, embedding_dim]
         distance_pos = pos_head + pos_rel - pos_tail
@@ -163,6 +189,10 @@ class TransX:
     ####
     def cal4transD(self, e, t, r):
         return tf.nn.l2_normalize(e + tf.reduce_sum(e * t, 1, keep_dims=True) * r, 1)
+
+    def cal4transH(self, e, n):
+        norm = tf.nn.l2_normalize(n, 1)
+        return e - tf.reduce_sum(e * norm, 1, keep_dims=True) * norm
 
     ####
 
@@ -292,11 +322,11 @@ class TransX:
                     continue
                 else:
                     tail_rank_filter += 1
-        return (head_rank_raw, tail_rank_raw, head_rank_filter, tail_rank_filter)
+        return head_rank_raw, tail_rank_raw, head_rank_filter, tail_rank_filter
 
 
 kg = KnowledgeGraph(data_path='data/WN18/', name='transe')
-kge_model = TransX(name='transd', kg=kg, embedding_dim=100, margin_value=1.0, dissimilarity_func='L2', batch_size=4800,
+kge_model = TransX(name='transh', kg=kg, embedding_dim=100, margin_value=1.0, dissimilarity_func='L2', batch_size=4800,
                    learning_rate=0.001)
 
 gpu_config = tf.GPUOptions(allow_growth=False)
