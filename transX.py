@@ -38,12 +38,17 @@ class TransX:
         self.entity_embedding = None
         self.relation_embedding = None
 
-        # 4transD
+        # transD
         self.ent_transfer4d = None
         self.rel_transfer4d = None
 
-        # 4transH
+        # transH
         self.normal_vector4h = None
+
+        # transR
+        self.hidden_sizeE4r = self.embedding_dim
+        self.hidden_sizeR4r = self.embedding_dim
+        self.rel_matrix4r = None
 
         self.init_embedding()  # 初始词嵌入
         self.init_train()  # 初始化训练步骤
@@ -53,11 +58,10 @@ class TransX:
         self.idx_tail_prediction = None
         self.build_eval_graph()
 
-        #
-
     def init_embedding(self):
         # 初始化embedding，相当于初始化权重
         if self.name == 'transe':
+            print('TransE Init.')
             bound = 6 / math.sqrt(self.embedding_dim)
             self.entity_embedding = tf.get_variable(name="entity_embedding",
                                                     shape=[self.kg.n_entity, self.embedding_dim],
@@ -67,6 +71,7 @@ class TransX:
                                                       shape=[self.kg.n_relation, self.embedding_dim],
                                                       name="relation_embedding")
         elif self.name == 'transd':
+            print('TransD Init.')
             bound = 6 / math.sqrt(self.embedding_dim)
             self.entity_embedding = tf.get_variable(name="entity_embedding",
                                                     shape=[self.kg.n_entity, self.embedding_dim],
@@ -82,6 +87,7 @@ class TransX:
                                                   shape=[self.kg.n_entity, self.embedding_dim],
                                                   initializer=tf.random_uniform_initializer(-bound, bound))
         elif self.name == 'transh':
+            print('TransH Init.')
             bound = 6 / math.sqrt(self.embedding_dim)
             self.entity_embedding = tf.get_variable(name="entity_embedding",
                                                     shape=[self.kg.n_entity, self.embedding_dim],
@@ -91,8 +97,28 @@ class TransX:
                                                       shape=[self.kg.n_relation, self.embedding_dim],
                                                       name="relation_embedding")
             self.normal_vector4h = tf.get_variable(name="normal_vector",
-                                                 shape=[self.kg.n_entity, self.embedding_dim],
-                                                 initializer=tf.random_uniform_initializer(-bound, bound))
+                                                   shape=[self.kg.n_entity, self.embedding_dim],
+                                                   initializer=tf.random_uniform_initializer(-bound, bound))
+        elif self.name == 'transr':
+            print('TransR Init.')
+            bound = 6 / math.sqrt(self.embedding_dim)
+            self.entity_embedding = tf.get_variable(name="entity_embedding",
+                                                    shape=[self.kg.n_entity, self.hidden_sizeE4r],
+                                                    initializer=tf.random_uniform_initializer(-bound, bound))
+
+            self.relation_embedding = tf.get_variable(initializer=tf.random_uniform_initializer(-bound, bound),
+                                                      shape=[self.kg.n_relation, self.hidden_sizeR4r],
+                                                      name="relation_embedding")
+
+            rel_matrix = np.zeros([self.kg.n_relation, self.hidden_sizeR4r * self.hidden_sizeE4r], dtype=np.float32)
+            for i in range(self.kg.n_relation):
+                for j in range(self.hidden_sizeR4r):
+                    for k in range(self.hidden_sizeE4r):
+                        if j == k:
+                            rel_matrix[i][j * self.hidden_sizeE4r + k] = 1.0
+            self.rel_matrix4r = tf.Variable(rel_matrix, name="rel_matrix")
+        else:
+            print('ERROR!')
 
     def init_train(self):
         # 正向传播 计算损失 训练步骤
@@ -153,10 +179,28 @@ class TransX:
 
             pos_head = self.cal4transH(pos_head, pos_norm)
             pos_tail = self.cal4transH(pos_tail, pos_norm)
+
             neg_head = self.cal4transH(neg_head, neg_norm)
             neg_tail = self.cal4transH(neg_tail, neg_norm)
+        elif self.name == 'transr':
+            print('TransR Called.')
+            pos_head = tf.reshape(pos_head, [-1, self.hidden_sizeE4r, 1])
+            pos_tail = tf.reshape(pos_tail, [-1, self.hidden_sizeE4r, 1])
+            pos_rel = tf.reshape(pos_rel, [-1, self.hidden_sizeR4r])
 
+            neg_head = tf.reshape(neg_head, [-1, self.hidden_sizeE4r, 1])
+            neg_tail = tf.reshape(neg_tail, [-1, self.hidden_sizeE4r, 1])
+            neg_rel = tf.reshape(neg_rel, [-1, self.hidden_sizeR4r])
 
+            pos_matrix = tf.reshape(tf.nn.embedding_lookup(self.rel_matrix4r, pos_triple[:, 1]),
+                                    [-1, self.hidden_sizeR4r, self.hidden_sizeE4r])
+            neg_matrix = tf.reshape(tf.nn.embedding_lookup(self.rel_matrix4r, neg_triple[:, 1]),
+                                    [-1, self.hidden_sizeR4r, self.hidden_sizeE4r])
+
+            pos_head = tf.nn.l2_normalize(tf.reshape(tf.matmul(pos_matrix, pos_head), [-1, self.hidden_sizeR4r]), 1)
+            pos_tail = tf.nn.l2_normalize(tf.reshape(tf.matmul(pos_matrix, pos_tail), [-1, self.hidden_sizeR4r]), 1)
+            neg_head = tf.nn.l2_normalize(tf.reshape(tf.matmul(neg_matrix, neg_head), [-1, self.hidden_sizeR4r]), 1)
+            neg_tail = tf.nn.l2_normalize(tf.reshape(tf.matmul(neg_matrix, neg_tail), [-1, self.hidden_sizeR4r]), 1)
 
         # 距离维度 [1, embedding_dim]
         distance_pos = pos_head + pos_rel - pos_tail
@@ -171,7 +215,7 @@ class TransX:
         epoch_loss = 0
         n_used_triple = 0
         for batches in self.kg.next_batch(self.batch_size):
-            print('emb:', np.array(self.entity_embedding.eval()).sum())
+            # print('emb:', np.array(self.entity_embedding.eval()).sum())
             n_batch += 1
             batch_pos, batch_neg = self.kg.get_pos_neg(batches)
             batch_loss, _ = sess.run(fetches=[self.loss, self.train_op], feed_dict={self.pos_triple: batch_pos,
@@ -186,7 +230,7 @@ class TransX:
         print('cost time: {:.3f}s'.format(timeit.default_timer() - start))
         print('-----Finish training-----')
 
-    ####
+    # 4 transX
     def cal4transD(self, e, t, r):
         return tf.nn.l2_normalize(e + tf.reduce_sum(e * t, 1, keep_dims=True) * r, 1)
 
@@ -194,7 +238,7 @@ class TransX:
         norm = tf.nn.l2_normalize(n, 1)
         return e - tf.reduce_sum(e * norm, 1, keep_dims=True) * norm
 
-    ####
+    #
 
     def build_eval_graph(self):
         with tf.name_scope('evaluation'):
@@ -326,7 +370,7 @@ class TransX:
 
 
 kg = KnowledgeGraph(data_path='data/WN18/', name='transe')
-kge_model = TransX(name='transh', kg=kg, embedding_dim=100, margin_value=1.0, dissimilarity_func='L2', batch_size=4800,
+kge_model = TransX(name='transr', kg=kg, embedding_dim=100, margin_value=1.0, dissimilarity_func='L2', batch_size=4800,
                    learning_rate=0.001)
 
 gpu_config = tf.GPUOptions(allow_growth=False)
