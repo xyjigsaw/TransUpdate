@@ -251,11 +251,53 @@ class TransX:
             relation = tf.nn.embedding_lookup(self.relation_embedding, eval_triple[1])  # 关系
 
         with tf.name_scope('link'):
-            # 头结点预测 通过训练的节点嵌入来代替原始头结点
-            distance_head_prediction = self.entity_embedding + relation - tail
+            if self.name == 'transe':
+                print('TransE Eva.')
+                # 头结点预测 通过训练的节点嵌入来代替原始头结点
+                distance_head_prediction = self.entity_embedding + relation - tail
+                # 尾结点预测 通过训练的节点嵌入来代替原始尾结点
+                distance_tail_prediction = head + relation - self.entity_embedding
+            elif self.name == 'transd':
+                print('TransD Eva.')
+                head_transd = [tf.nn.embedding_lookup(self.ent_transfer4d, eval_triple[0])]
+                rel_transd = [tf.nn.embedding_lookup(self.rel_transfer4d, eval_triple[1])]
+                tail_transd = [tf.nn.embedding_lookup(self.ent_transfer4d, eval_triple[2])]
 
-            # 尾结点预测 通过训练的节点嵌入来代替原始尾结点
-            distance_tail_prediction = head + relation - self.entity_embedding
+                all_emb = self.cal4transD(self.entity_embedding, self.ent_transfer4d, self.rel_transfer4d)
+                new_head = self.cal4transD(head, head_transd, rel_transd)
+                new_tail = self.cal4transD(tail, tail_transd, rel_transd)
+
+                distance_head_prediction = all_emb + relation - new_tail
+                distance_tail_prediction = new_head + relation - all_emb
+            elif self.name == 'transh':
+                print('TransH Eva.')
+                norm = [tf.nn.embedding_lookup(self.normal_vector4h, eval_triple[1])]
+
+                all_emb = self.cal4transH(self.entity_embedding, self.normal_vector4h)
+                new_head = self.cal4transH(head, norm)
+                new_tail = self.cal4transH(tail, norm)
+
+                distance_head_prediction = all_emb + relation - new_tail
+                distance_tail_prediction = new_head + relation - all_emb
+            elif self.name == 'transr':
+                print('TransR Eva.')
+                all_emb = tf.reshape(self.entity_embedding, [-1, self.hidden_sizeE4r, 1])
+                new_head = tf.reshape(head, [-1, self.hidden_sizeE4r, 1])
+                new_tail = tf.reshape(tail, [-1, self.hidden_sizeE4r, 1])
+                new_rel = tf.reshape(relation, [-1, self.hidden_sizeR4r])
+
+                transr_matrix = tf.reshape(tf.nn.embedding_lookup(self.rel_matrix4r, eval_triple[1]),
+                                           [-1, self.hidden_sizeR4r, self.hidden_sizeE4r])
+
+                all_emb = tf.nn.l2_normalize(tf.reshape(tf.matmul(transr_matrix, all_emb),
+                                                        [-1, self.hidden_sizeR4r]), 1)
+                new_head = tf.nn.l2_normalize(tf.reshape(tf.matmul(transr_matrix, new_head),
+                                                         [-1, self.hidden_sizeR4r]), 1)
+                new_tail = tf.nn.l2_normalize(tf.reshape(tf.matmul(transr_matrix, new_tail),
+                                                         [-1, self.hidden_sizeR4r]), 1)
+
+                distance_head_prediction = all_emb + new_rel - new_tail
+                distance_tail_prediction = new_head + new_rel - all_emb
 
         with tf.name_scope('rank'):
             if self.dissimilarity_func == 'L1':  # L1 score
@@ -297,7 +339,7 @@ class TransX:
         head_hits10_filter = 0
         tail_meanrank_filter = 0
         tail_hits10_filter = 0
-        print(n_used_eval_triple, rank_result_queue)
+        # print(n_used_eval_triple, rank_result_queue)
         for i in range(n_used_eval_triple):
             head_rank_raw, tail_rank_raw, head_rank_filter, tail_rank_filter = self.calculate_rank(rank_result_queue[i])
             head_meanrank_raw += head_rank_raw
@@ -338,7 +380,7 @@ class TransX:
                                                          (head_hits10_filter + tail_hits10_filter) / 2))
         print('cost time: {:.3f}s'.format(timeit.default_timer() - start))
         print('-----Finish evaluation-----')
-        # self.kg.write_vec(self.entity_embedding.eval(), self.relation_embedding.eval())
+        # self.kg.write_vec(self.name, self.entity_embedding.eval(), self.relation_embedding.eval())
 
     def calculate_rank(self, idx_predictions):
         eval_triple, idx_head_prediction, idx_tail_prediction = idx_predictions
@@ -369,17 +411,23 @@ class TransX:
         return head_rank_raw, tail_rank_raw, head_rank_filter, tail_rank_filter
 
 
-kg = KnowledgeGraph(data_path='data/WN18/', name='transe')
-kge_model = TransX(name='transr', kg=kg, embedding_dim=100, margin_value=1.0, dissimilarity_func='L2', batch_size=4800,
-                   learning_rate=0.001)
+if __name__ == '__main__':
+    name = 'transr'
+    kg = KnowledgeGraph(data_path='data/WN18/', name=name)
+    kge_model = TransX(name=name, kg=kg, embedding_dim=100, margin_value=1.0, dissimilarity_func='L2',
+                       batch_size=4800,
+                       learning_rate=0.001)
 
-gpu_config = tf.GPUOptions(allow_growth=False)
-sess_config = tf.ConfigProto(gpu_options=gpu_config)
+    gpu_config = tf.GPUOptions(allow_growth=False)
+    sess_config = tf.ConfigProto(gpu_options=gpu_config)
+    saver = tf.train.Saver()
 
-with tf.Session(config=sess_config) as sess:
-    tf.global_variables_initializer().run()
-    for epoch in range(50):
-        print('=' * 30 + '[EPOCH {}]'.format(epoch) + '=' * 30)
-        kge_model.launch_training(sess)
-        if (epoch + 1) % 50 == 0:
-            kge_model.launch_evaluation(sess)
+    with tf.Session(config=sess_config) as sess:
+        tf.global_variables_initializer().run()
+        for epoch in range(1):
+            print('=' * 30 + '[EPOCH {}]'.format(epoch) + '=' * 30)
+            kge_model.launch_training(sess)
+            if (epoch + 1) % 1 == 0:
+                kge_model.launch_evaluation(sess)
+            save_path = saver.save(sess, "saver/xxx.ckpt")
+            print("Save to path: ", save_path)

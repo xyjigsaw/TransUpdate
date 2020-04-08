@@ -10,7 +10,7 @@ import scipy.sparse as sp
 class KnowledgeGraph:
     def __init__(self, data_path, name):
         self.data_path = data_path  # 数据集文件夹的路径
-        self.name = name
+        self.name = name.lower()
 
         # 实体
         self.entity_dict = {}  # 存储所有实体信息 {'实体1': 下标1}
@@ -47,7 +47,7 @@ class KnowledgeGraph:
         self.fact_triple_pool = set(self.fact_triple)
         self.new_triple_pool = set(self.new_triple)
         self.training_triple_pool = set(self.train_triple)
-        if self.name == 'transe':
+        if self.name in ['transe', 'transh', 'transd', 'transr']:
             self.golden_triple_pool = set(self.train_triple) | set(self.valid_triple) | set(self.test_triple)
         elif self.name == 'my':
             self.golden_triple_pool = set(self.train_triple) | set(self.valid_triple) | set(self.test_triple) | set(self.fact_triple)
@@ -75,7 +75,7 @@ class KnowledgeGraph:
 
     def load_triple(self):
         # 加载三元组(head, relation, tail)
-        if self.name == 'transe':
+        if self.name in ['transe', 'transh', 'transd', 'transr']:
             train_path = "/train_fact.txt"
         elif self.name == 'my':
             train_path = "/train_new.txt"
@@ -168,12 +168,12 @@ class KnowledgeGraph:
 
         return batch_pos, batch_neg
 
-    def write_vec(self, entity_embedding, relation_embedding):
+    def write_vec(self, name, entity_embedding, relation_embedding):
         """
         for transE
         """
         print("=" * 20 + "write vector to file" + "=" * 20)
-        with open('output/entity_embedding.txt', 'w', encoding="utf-8") as file:
+        with open('output/' + name + 'entity_embedding.txt', 'w', encoding="utf-8") as file:
             for key in self.entity_dict:
                 file.write(str(self.entity_dict[key]) + '::')
                 file.write(str(key) + '::')
@@ -181,7 +181,7 @@ class KnowledgeGraph:
                 file.write("\n")
 
         print('entity save done!')
-        with open('output/relation_embedding.txt', 'w', encoding="utf-8") as file:
+        with open('output/' + name + 'relation_embedding.txt', 'w', encoding="utf-8") as file:
             for key in self.relation_dict:
                 file.write(str(self.relation_dict[key]) + '::')
                 file.write(str(key) + '::')
