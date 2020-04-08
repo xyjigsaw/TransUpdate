@@ -17,12 +17,13 @@ tf.compat.v1.disable_eager_execution()
 
 
 class TransUpdate:
-    def __init__(self, cmp_name, kg: KnowledgeGraph, dissimilarity_func, learning_rate, epoch):
+    def __init__(self, cmp_name, kg: KnowledgeGraph, dissimilarity_func, learning_rate, epoch, eval_times):
         # 根据文献 lr = {0.001, 0.01, 0.1} embedding_dim = {20, 50}
         # WN18数据集 lr = 0.01  dim = 50  d_f = L1
         # FB15K lr = 0.01  dim = 50  d_f = L2
         self.cmp_name = cmp_name.lower()
         self.epoch = epoch
+        self.eval_times = eval_times
 
         self.kg = kg  # 知识图谱三元组
         self.dissimilarity_func = dissimilarity_func  # 不相似函数(稀疏函数) 一般取 L1 或 L2
@@ -41,15 +42,12 @@ class TransUpdate:
         self.entity_embedding = None
         self.relation_embedding = None
         self.embedding_dim = None
-        self.load_embedding()  # 读取初始词嵌入和维度
 
-        self.init_train()  # 初始化训练步骤
 
         # 评估操作
         self.eval_triple = tf.placeholder(dtype=tf.int32, shape=[None, 3])  # 评估三元组，3行n列
         self.idx_head_prediction = None
         self.idx_tail_prediction = None
-        self.build_eval_graph()
 
         # 评估操作
         self.eval_triple4raw = tf.placeholder(dtype=tf.int32, shape=[None, 3])  # 评估三元组，3行n列
@@ -67,7 +65,10 @@ class TransUpdate:
         self.hidden_sizeR4r = self.embedding_dim
         self.rel_matrix4r = None
 
+        self.load_embedding()  # 读取初始词嵌入和维度
         self.load_embedding4raw()
+        self.init_train()  # 初始化训练步骤
+        self.build_eval_graph()
         self.build_eval_graph4raw()
 
     def load_embedding(self):
@@ -88,6 +89,8 @@ class TransUpdate:
         self.entity_embedding = tf.Variable(tf.convert_to_tensor(entity_embedding), name="entity_embedding")
         self.embedding_dim = self.entity_embedding.get_shape()[1]
         del entity_embedding
+        self.hidden_sizeE4r = self.embedding_dim
+        self.hidden_sizeR4r = self.embedding_dim
 
         f = open('output/' + self.cmp_name + '/relation_embedding.txt', 'r')
         line = f.readline()
@@ -144,7 +147,7 @@ class TransUpdate:
 
         n_used_triple = 0
         for triple in self.kg.tmp_next_triple():
-            if n_used_triple % 1 == 0:
+            if n_used_triple % self.eval_times == 0:
                 try:
                     self.launch_evaluation(sess, n_used_triple)
                     self.launch_evaluation4raw(sess, n_used_triple)
@@ -211,11 +214,54 @@ class TransUpdate:
             relation = tf.nn.embedding_lookup(self.relation_embedding, eval_triple[:, 1])  # 关系
 
         with tf.name_scope('link'):
-            # 头结点预测 通过训练的节点嵌入来代替原始头结点
-            distance_head_prediction = self.entity_embedding + relation - tail
+            if self.cmp_name == 'transe':
+                print('TransE Eva.')
+                # 头结点预测 通过训练的节点嵌入来代替原始头结点
+                distance_head_prediction = self.entity_embedding + relation - tail
+                # 尾结点预测 通过训练的节点嵌入来代替原始尾结点
+                distance_tail_prediction = head + relation - self.entity_embedding
+            elif self.cmp_name == 'transd':
+                print('TransD Eva.')
+                head_transd = tf.nn.embedding_lookup(self.ent_transfer4d, eval_triple[:, 0])
+                rel_transd = tf.nn.embedding_lookup(self.rel_transfer4d, eval_triple[:, 1])
+                tail_transd = tf.nn.embedding_lookup(self.ent_transfer4d, eval_triple[:, 2])
 
-            # 尾结点预测 通过训练的节点嵌入来代替原始尾结点
-            distance_tail_prediction = head + relation - self.entity_embedding
+                all_emb = self.cal4transD(self.entity_embedding, self.ent_transfer4d,
+                                          tf.tile(rel_transd, [self.kg.n_entity, 1]))
+                new_head = self.cal4transD(head, head_transd, rel_transd)
+                new_tail = self.cal4transD(tail, tail_transd, rel_transd)
+
+                distance_head_prediction = all_emb + relation - new_tail
+                distance_tail_prediction = new_head + relation - all_emb
+            elif self.cmp_name == 'transh':
+                print('TransH Eva.')
+                norm = tf.nn.embedding_lookup(self.normal_vector4h, eval_triple[:, 1])
+
+                all_emb = self.cal4transH(self.entity_embedding, tf.tile(norm, [self.kg.n_entity, 1]))
+                new_head = self.cal4transH(head, norm)
+                new_tail = self.cal4transH(tail, norm)
+
+                distance_head_prediction = all_emb + relation - new_tail
+                distance_tail_prediction = new_head + relation - all_emb
+            elif self.cmp_name == 'transr':
+                print('TransR Eva.')
+                all_emb = tf.reshape(self.entity_embedding, [-1, self.hidden_sizeE4r, 1])
+                new_head = tf.reshape(head, [-1, self.hidden_sizeE4r, 1])
+                new_tail = tf.reshape(tail, [-1, self.hidden_sizeE4r, 1])
+                new_rel = tf.reshape(relation, [-1, self.hidden_sizeR4r])
+
+                transr_matrix = tf.reshape(tf.nn.embedding_lookup(self.rel_matrix4r, eval_triple[:, 1]),
+                                           [-1, self.hidden_sizeR4r, self.hidden_sizeE4r])
+
+                all_emb = tf.nn.l2_normalize(tf.reshape(tf.matmul(transr_matrix, all_emb),
+                                                        [-1, self.hidden_sizeR4r]), 1)
+                new_head = tf.nn.l2_normalize(tf.reshape(tf.matmul(transr_matrix, new_head),
+                                                         [-1, self.hidden_sizeR4r]), 1)
+                new_tail = tf.nn.l2_normalize(tf.reshape(tf.matmul(transr_matrix, new_tail),
+                                                         [-1, self.hidden_sizeR4r]), 1)
+
+                distance_head_prediction = all_emb + new_rel - new_tail
+                distance_tail_prediction = new_head + new_rel - all_emb
 
         with tf.name_scope('rank'):
             if self.dissimilarity_func == 'L1':  # L1 score
@@ -592,7 +638,7 @@ class TransUpdate:
 
 
 kg = KnowledgeGraph(data_path='data/WN18/', name='my')
-kge_model = TransUpdate(cmp_name='transd', kg=kg, dissimilarity_func='L2', learning_rate=0.01, epoch=100)
+kge_model = TransUpdate(cmp_name='transr', kg=kg, dissimilarity_func='L2', learning_rate=0.01, epoch=100, eval_times=50)
 gpu_config = tf.GPUOptions(allow_growth=False)
 sess_config = tf.ConfigProto(gpu_options=gpu_config)
 
