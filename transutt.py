@@ -46,13 +46,13 @@ class TransUpdate:
         self.init_train()  # 初始化训练步骤
 
         # 评估操作
-        self.eval_triple = tf.placeholder(dtype=tf.int32, shape=[3])  # 评估三元组，3行n列
+        self.eval_triple = tf.placeholder(dtype=tf.int32, shape=[None, 3])  # 评估三元组，3行n列
         self.idx_head_prediction = None
         self.idx_tail_prediction = None
         self.build_eval_graph()
 
         # 评估操作
-        self.eval_triple4raw = tf.placeholder(dtype=tf.int32, shape=[3])  # 评估三元组，3行n列
+        self.eval_triple4raw = tf.placeholder(dtype=tf.int32, shape=[None, 3])  # 评估三元组，3行n列
         self.idx_head_prediction4raw = None
         self.idx_tail_prediction4raw = None
         self.entity_embedding4raw = None
@@ -116,18 +116,6 @@ class TransUpdate:
         # distance = p_neighbor - p_real_neighbor
         self.loss = tf.reduce_mean(-tf.reduce_sum(tf.log(p_neighbor)*p_real_neighbor, axis=1))
 
-        '''
-        # 计算损失 与选择的dissimilarity_func有关
-        if self.dissimilarity_func == 'L1':
-            # 将每一行相加 所有pos/neg的得分
-            score = tf.reduce_sum(tf.abs(distance), axis=1)
-        else:  # L2 score
-            score = tf.reduce_sum(tf.square(distance), axis=1)
-
-        # 使用relu函数取正数部分
-        self.loss = tf.reduce_sum(score)
-        # 选择优化器，并继续训练操作
-        '''
         self.train_op = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate). \
             minimize(self.loss, global_step=self.global_step)
 
@@ -156,7 +144,7 @@ class TransUpdate:
 
         n_used_triple = 0
         for triple in self.kg.tmp_next_triple():
-            if n_used_triple % 5 == 0:
+            if n_used_triple % 1 == 0:
                 try:
                     self.launch_evaluation(sess, n_used_triple)
                     self.launch_evaluation4raw(sess, n_used_triple)
@@ -189,7 +177,7 @@ class TransUpdate:
 
             prob_e = np.array(prob_e) / sum(list(rel_cnt.values()))
 
-            # print('neighbor_id_rel:', neighbor_id_rel)
+            print('neighbor_id_rel:', neighbor_id_rel)
             # print('prob_e', prob_e)
             # print('rel_cnt', rel_cnt)
 
@@ -202,7 +190,7 @@ class TransUpdate:
                                                      self.prob_e: prob_e})
                 # print('regret_loss', regret_loss)
                 epoch_loss += regret_loss
-                print('REGRET: {:.5f}'.format(regret_loss))
+                # print('REGRET: {:.5f}'.format(regret_loss))
             print('[TRAIN {:.3f}s] #triple: {}/{} Done.'.format(timeit.default_timer() - start,
                                                                 n_used_triple,
                                                                 self.kg.n_train_triple))
@@ -218,9 +206,9 @@ class TransUpdate:
 
     def evaluate(self, eval_triple):
         with tf.name_scope('lookup'):
-            head = tf.nn.embedding_lookup(self.entity_embedding, eval_triple[0])  # 头结点
-            tail = tf.nn.embedding_lookup(self.entity_embedding, eval_triple[2])  # 尾结点
-            relation = tf.nn.embedding_lookup(self.relation_embedding, eval_triple[1])  # 关系
+            head = tf.nn.embedding_lookup(self.entity_embedding, eval_triple[:, 0])  # 头结点
+            tail = tf.nn.embedding_lookup(self.entity_embedding, eval_triple[:, 2])  # 尾结点
+            relation = tf.nn.embedding_lookup(self.relation_embedding, eval_triple[:, 1])  # 关系
 
         with tf.name_scope('link'):
             # 头结点预测 通过训练的节点嵌入来代替原始头结点
@@ -253,7 +241,7 @@ class TransUpdate:
         for eval_triple in self.kg.triple_in_test:
             idx_head_prediction, idx_tail_prediction = session.run(fetches=[self.idx_head_prediction,
                                                                             self.idx_tail_prediction],
-                                                                   feed_dict={self.eval_triple: eval_triple})
+                                                                   feed_dict={self.eval_triple: [eval_triple]})
             eval_result_queue = [eval_triple, idx_head_prediction, idx_tail_prediction]
             rank_result_queue.append(eval_result_queue)
             n_used_eval_triple += 1
@@ -420,6 +408,32 @@ class TransUpdate:
             f.close()
             self.rel_transfer4d = tf.Variable(tf.convert_to_tensor(para), name="rel_transfer4d")
             del para
+        elif self.cmp_name == 'transh':
+            f = open('output/' + self.cmp_name + '/normal_vector4h.txt', 'r')
+            line = f.readline()
+            para = []
+            while line:
+                if '::' in line:
+                    e_id, e, raw = line.split('::')
+                    item = [float(i) for i in raw.split(',')]
+                    para.append(item)
+                line = f.readline().strip()
+            f.close()
+            self.normal_vector4h = tf.Variable(tf.convert_to_tensor(para), name="normal_vector4h")
+            del para
+        elif self.cmp_name == 'transr':
+            f = open('output/' + self.cmp_name + '/rel_matrix4r.txt', 'r')
+            line = f.readline()
+            para = []
+            while line:
+                if '::' in line:
+                    e_id, e, raw = line.split('::')
+                    item = [float(i) for i in raw.split(',')]
+                    para.append(item)
+                line = f.readline().strip()
+            f.close()
+            self.rel_matrix4r = tf.Variable(tf.convert_to_tensor(para), name="rel_matrix4r")
+            del para
 
         print('LOADING ' + self.cmp_name + ' PARA COST TIME: {:.4f}s.'.format(timeit.default_timer() - start))
 
@@ -429,9 +443,9 @@ class TransUpdate:
 
     def evaluate4raw(self, eval_triple4raw):
         with tf.name_scope('lookup4raw'):
-            head = tf.nn.embedding_lookup(self.entity_embedding4raw, eval_triple4raw[0])  # 头结点
-            tail = tf.nn.embedding_lookup(self.entity_embedding4raw, eval_triple4raw[2])  # 尾结点
-            relation = tf.nn.embedding_lookup(self.relation_embedding4raw, eval_triple4raw[1])  # 关系
+            head = tf.nn.embedding_lookup(self.entity_embedding4raw, eval_triple4raw[:, 0])  # 头结点
+            tail = tf.nn.embedding_lookup(self.entity_embedding4raw, eval_triple4raw[:, 2])  # 尾结点
+            relation = tf.nn.embedding_lookup(self.relation_embedding4raw, eval_triple4raw[:, 1])  # 关系
 
         with tf.name_scope('link4raw'):
             if self.cmp_name == 'transe':
@@ -442,15 +456,12 @@ class TransUpdate:
                 distance_tail_prediction = head + relation - self.entity_embedding4raw
             elif self.cmp_name == 'transd':
                 print('TransD Eva.')
-                head_transd = [tf.nn.embedding_lookup(self.ent_transfer4d, eval_triple4raw[0])]
-                rel_transd = [tf.nn.embedding_lookup(self.rel_transfer4d, eval_triple4raw[1])]
-                tail_transd = [tf.nn.embedding_lookup(self.ent_transfer4d, eval_triple4raw[2])]
+                head_transd = tf.nn.embedding_lookup(self.ent_transfer4d, eval_triple4raw[:, 0])
+                rel_transd = tf.nn.embedding_lookup(self.rel_transfer4d, eval_triple4raw[:, 1])
+                tail_transd = tf.nn.embedding_lookup(self.ent_transfer4d, eval_triple4raw[:, 2])
 
-                # print('s', self.entity_embedding)
-                # print('d', self.ent_transfer4d)
-                # print('f', self.rel_transfer4d)
-
-                all_emb = self.cal4transD(self.entity_embedding4raw, self.ent_transfer4d, self.rel_transfer4d)
+                all_emb = self.cal4transD(self.entity_embedding4raw, self.ent_transfer4d,
+                                          tf.tile(rel_transd, [self.kg.n_entity, 1]))
                 new_head = self.cal4transD(head, head_transd, rel_transd)
                 new_tail = self.cal4transD(tail, tail_transd, rel_transd)
 
@@ -458,9 +469,9 @@ class TransUpdate:
                 distance_tail_prediction = new_head + relation - all_emb
             elif self.cmp_name == 'transh':
                 print('TransH Eva.')
-                norm = [tf.nn.embedding_lookup(self.normal_vector4h, eval_triple4raw[1])]
+                norm = tf.nn.embedding_lookup(self.normal_vector4h, eval_triple4raw[:, 1])
 
-                all_emb = self.cal4transH(self.entity_embedding4raw, self.normal_vector4h)
+                all_emb = self.cal4transH(self.entity_embedding4raw, tf.tile(norm, [self.kg.n_entity, 1]))
                 new_head = self.cal4transH(head, norm)
                 new_tail = self.cal4transH(tail, norm)
 
@@ -473,7 +484,7 @@ class TransUpdate:
                 new_tail = tf.reshape(tail, [-1, self.hidden_sizeE4r, 1])
                 new_rel = tf.reshape(relation, [-1, self.hidden_sizeR4r])
 
-                transr_matrix = tf.reshape(tf.nn.embedding_lookup(self.rel_matrix4r, eval_triple4raw[1]),
+                transr_matrix = tf.reshape(tf.nn.embedding_lookup(self.rel_matrix4r, eval_triple4raw[:, 1]),
                                            [-1, self.hidden_sizeR4r, self.hidden_sizeE4r])
 
                 all_emb = tf.nn.l2_normalize(tf.reshape(tf.matmul(transr_matrix, all_emb),
@@ -509,7 +520,7 @@ class TransUpdate:
         for eval_triple4raw in self.kg.triple_in_test:
             idx_head_prediction, idx_tail_prediction = session.run(fetches=[self.idx_head_prediction4raw,
                                                                             self.idx_tail_prediction4raw],
-                                                                   feed_dict={self.eval_triple4raw: eval_triple4raw})
+                                                                   feed_dict={self.eval_triple4raw: [eval_triple4raw]})
             eval_result_queue = [eval_triple4raw, idx_head_prediction, idx_tail_prediction]
             rank_result_queue.append(eval_result_queue)
             n_used_eval_triple += 1
@@ -581,7 +592,7 @@ class TransUpdate:
 
 
 kg = KnowledgeGraph(data_path='data/WN18/', name='my')
-kge_model = TransUpdate(cmp_name='transd', kg=kg, dissimilarity_func='L2', learning_rate=0.01, epoch=10)
+kge_model = TransUpdate(cmp_name='transd', kg=kg, dissimilarity_func='L2', learning_rate=0.01, epoch=100)
 gpu_config = tf.GPUOptions(allow_growth=False)
 sess_config = tf.ConfigProto(gpu_options=gpu_config)
 

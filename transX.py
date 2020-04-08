@@ -124,7 +124,6 @@ class TransX:
         # 正向传播 计算损失 训练步骤
         # 正则化
         self.entity_embedding = tf.nn.l2_normalize(self.entity_embedding, dim=1)
-        print('entity_embedding:', self.entity_embedding)
         self.relation_embedding = tf.nn.l2_normalize(self.relation_embedding, dim=1)
 
         # 计算正/负样本的距离
@@ -429,7 +428,7 @@ class TransX:
 
 
 if __name__ == '__main__':
-    name = 'transh'
+    name = 'transr'
     kg = KnowledgeGraph(data_path='data/WN18/', name=name)
     kge_model = TransX(name=name, kg=kg, embedding_dim=100, margin_value=1.0, dissimilarity_func='L2',
                        batch_size=4800,
@@ -440,8 +439,8 @@ if __name__ == '__main__':
 
     with tf.Session(config=sess_config) as sess:
         tf.global_variables_initializer().run()
-        for epoch in range(1):
+        for epoch in range(50):
             print('=' * 30 + '[EPOCH {}]'.format(epoch) + '=' * 30)
             kge_model.launch_training(sess)
-            if (epoch + 1) % 1 == 0:
+            if (epoch + 1) % 50 == 0:
                 kge_model.launch_evaluation(sess)
