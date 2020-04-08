@@ -168,26 +168,22 @@ class KnowledgeGraph:
 
         return batch_pos, batch_neg
 
-    def write_vec(self, name, entity_embedding, relation_embedding):
-        """
-        for transE
-        """
-        print("=" * 20 + "write vector to file" + "=" * 20)
-        with open('output/' + name + 'entity_embedding.txt', 'w', encoding="utf-8") as file:
-            for key in self.entity_dict:
-                file.write(str(self.entity_dict[key]) + '::')
-                file.write(str(key) + '::')
-                file.write(','.join(str(i) for i in entity_embedding[self.entity_dict[key]]))
-                file.write("\n")
-
-        print('entity save done!')
-        with open('output/' + name + 'relation_embedding.txt', 'w', encoding="utf-8") as file:
-            for key in self.relation_dict:
-                file.write(str(self.relation_dict[key]) + '::')
-                file.write(str(key) + '::')
-                file.write(','.join(str(i) for i in relation_embedding[self.relation_dict[key]]))
-                file.write("\n")
-        print('relation save done!')
+    def write_para_vec(self, name, para, ref, text):
+        print("=" * 20 + name + " write para to file" + "=" * 20)
+        if ref == 'entity':
+            with open('output/' + name + '/' + text + '.txt', 'w', encoding="utf-8") as file:
+                for key in self.entity_dict:
+                    file.write(str(self.entity_dict[key]) + '::')
+                    file.write(str(key) + '::')
+                    file.write(','.join(str(i) for i in para[self.entity_dict[key]]))
+                    file.write("\n")
+        else:
+            with open('output/' + name + '/' + text + '.txt', 'w', encoding="utf-8") as file:
+                for key in self.relation_dict:
+                    file.write(str(self.relation_dict[key]) + '::')
+                    file.write(str(key) + '::')
+                    file.write(','.join(str(i) for i in para[self.relation_dict[key]]))
+                    file.write("\n")
 
     # # for transUpdate
 
@@ -305,7 +301,7 @@ class KnowledgeGraph:
         # print('@', node_set)
         # print('x', self.triple_in_test)
 
-    def result2txt(self, name, raw_d, filter_d):
+    def result2txt(self, name, cmp_name, raw_d, filter_d):
         """
         'new_triple': n_new_triple, 'used_eval_triple': n_used_eval_triple,
         'H_MR': head_meanrank_raw, 'H_h10': head_hits10_raw,
@@ -313,12 +309,12 @@ class KnowledgeGraph:
         'AVE_MR': (head_meanrank_raw + tail_meanrank_raw) / 2,
         'AVE_h10': (head_hits10_raw + tail_hits10_raw) / 2
         """
-        with open('output/' + name + '_raw.txt', 'a', encoding='utf-8') as file:
+        with open('output/' + cmp_name + '/' + name + '_raw.txt', 'a', encoding='utf-8') as file:
             file.write(str(raw_d['new_triple']) + ',' + str(raw_d['used_eval_triple']) + ',' +
                        str(raw_d['H_MR']) + ',' + str(raw_d['H_h10']) + ',' +
                        str(raw_d['T_MR']) + ',' + str(raw_d['T_h10']) + ',' +
                        str(raw_d['AVE_MR']) + ',' + str(raw_d['AVE_h10']) + '\n')
-        with open('output/' + name + '_filter.txt', 'a', encoding='utf-8') as file:
+        with open('output/' + cmp_name + '/' + name + '_filter.txt', 'a', encoding='utf-8') as file:
             file.write(str(filter_d['new_triple']) + ',' + str(filter_d['used_eval_triple']) + ',' +
                        str(filter_d['H_MR']) + ',' + str(filter_d['H_h10']) + ',' +
                        str(filter_d['T_MR']) + ',' + str(filter_d['T_h10']) + ',' +

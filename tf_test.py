@@ -7,15 +7,11 @@
 
 import tensorflow.compat.v1 as tf
 tf.compat.v1.disable_eager_execution()
-X = tf.constant([[2.0, 2.0, 3.0]])
-Z = tf.constant([[2.0, 4.0, 5.0]])
 
-y_2 = tf.reduce_mean(X, 0)  # 沿着轴0求和
-y_3 = tf.reduce_sum(X, 1, keep_dims=True)
+a = tf.constant([[1, 2, 4, 5, 6]], dtype=tf.float32)
+print(a)
+
+a1 = tf.tile(a, [2, 1])
 
 with tf.Session() as sess:
-    sess.run(tf.global_variables_initializer())
-    c_1 = sess.run(-tf.reduce_sum(tf.log(X)*Z, axis=1))
-    print(c_1)
-    # print(c_2)
-    # print(c_3)
+    print(sess.run(a1))

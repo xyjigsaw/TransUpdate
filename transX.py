@@ -53,7 +53,7 @@ class TransX:
         self.init_embedding()  # 初始词嵌入
         self.init_train()  # 初始化训练步骤
         # 评估操作
-        self.eval_triple = tf.placeholder(dtype=tf.int32, shape=[3])  # 评估三元组，3行n列
+        self.eval_triple = tf.placeholder(dtype=tf.int32, shape=[None, 3])
         self.idx_head_prediction = None
         self.idx_tail_prediction = None
         self.build_eval_graph()
@@ -84,7 +84,7 @@ class TransX:
                                                   shape=[self.kg.n_entity, self.embedding_dim],
                                                   initializer=tf.random_uniform_initializer(-bound, bound))
             self.rel_transfer4d = tf.get_variable(name="rel_transfer4d",
-                                                  shape=[self.kg.n_entity, self.embedding_dim],
+                                                  shape=[self.kg.n_relation, self.embedding_dim],
                                                   initializer=tf.random_uniform_initializer(-bound, bound))
         elif self.name == 'transh':
             print('TransH Init.')
@@ -246,9 +246,9 @@ class TransX:
 
     def evaluate(self, eval_triple):
         with tf.name_scope('lookup'):
-            head = tf.nn.embedding_lookup(self.entity_embedding, eval_triple[0])  # 头结点
-            tail = tf.nn.embedding_lookup(self.entity_embedding, eval_triple[2])  # 尾结点
-            relation = tf.nn.embedding_lookup(self.relation_embedding, eval_triple[1])  # 关系
+            head = tf.nn.embedding_lookup(self.entity_embedding, eval_triple[:, 0])  # 头结点
+            tail = tf.nn.embedding_lookup(self.entity_embedding, eval_triple[:, 2])  # 尾结点
+            relation = tf.nn.embedding_lookup(self.relation_embedding, eval_triple[:, 1])  # 关系
 
         with tf.name_scope('link'):
             if self.name == 'transe':
@@ -259,11 +259,16 @@ class TransX:
                 distance_tail_prediction = head + relation - self.entity_embedding
             elif self.name == 'transd':
                 print('TransD Eva.')
-                head_transd = [tf.nn.embedding_lookup(self.ent_transfer4d, eval_triple[0])]
-                rel_transd = [tf.nn.embedding_lookup(self.rel_transfer4d, eval_triple[1])]
-                tail_transd = [tf.nn.embedding_lookup(self.ent_transfer4d, eval_triple[2])]
+                head_transd = tf.nn.embedding_lookup(self.ent_transfer4d, eval_triple[:, 0])
+                rel_transd = tf.nn.embedding_lookup(self.rel_transfer4d, eval_triple[:, 1])
+                tail_transd = tf.nn.embedding_lookup(self.ent_transfer4d, eval_triple[:, 2])
 
-                all_emb = self.cal4transD(self.entity_embedding, self.ent_transfer4d, self.rel_transfer4d)
+                print('s', self.entity_embedding)
+                print('d', self.ent_transfer4d)
+                print('f', self.rel_transfer4d)
+
+                all_emb = self.cal4transD(self.entity_embedding, self.ent_transfer4d,
+                                          tf.tile(rel_transd, [self.kg.n_entity, 1]))
                 new_head = self.cal4transD(head, head_transd, rel_transd)
                 new_tail = self.cal4transD(tail, tail_transd, rel_transd)
 
@@ -271,9 +276,9 @@ class TransX:
                 distance_tail_prediction = new_head + relation - all_emb
             elif self.name == 'transh':
                 print('TransH Eva.')
-                norm = [tf.nn.embedding_lookup(self.normal_vector4h, eval_triple[1])]
+                norm = tf.nn.embedding_lookup(self.normal_vector4h, eval_triple[:, 1])
 
-                all_emb = self.cal4transH(self.entity_embedding, self.normal_vector4h)
+                all_emb = self.cal4transH(self.entity_embedding, tf.tile(norm, [self.kg.n_entity, 1]))
                 new_head = self.cal4transH(head, norm)
                 new_tail = self.cal4transH(tail, norm)
 
@@ -286,7 +291,7 @@ class TransX:
                 new_tail = tf.reshape(tail, [-1, self.hidden_sizeE4r, 1])
                 new_rel = tf.reshape(relation, [-1, self.hidden_sizeR4r])
 
-                transr_matrix = tf.reshape(tf.nn.embedding_lookup(self.rel_matrix4r, eval_triple[1]),
+                transr_matrix = tf.reshape(tf.nn.embedding_lookup(self.rel_matrix4r, eval_triple[:, 1]),
                                            [-1, self.hidden_sizeR4r, self.hidden_sizeE4r])
 
                 all_emb = tf.nn.l2_normalize(tf.reshape(tf.matmul(transr_matrix, all_emb),
@@ -321,7 +326,7 @@ class TransX:
         for eval_triple in self.kg.test_triple:
             idx_head_prediction, idx_tail_prediction = session.run(fetches=[self.idx_head_prediction,
                                                                             self.idx_tail_prediction],
-                                                                   feed_dict={self.eval_triple: eval_triple})
+                                                                   feed_dict={self.eval_triple: [eval_triple]})
             eval_result_queue = [eval_triple, idx_head_prediction, idx_tail_prediction]
             rank_result_queue.append(eval_result_queue)
             n_used_eval_triple += 1
@@ -380,7 +385,19 @@ class TransX:
                                                          (head_hits10_filter + tail_hits10_filter) / 2))
         print('cost time: {:.3f}s'.format(timeit.default_timer() - start))
         print('-----Finish evaluation-----')
-        # self.kg.write_vec(self.name, self.entity_embedding.eval(), self.relation_embedding.eval())
+
+        self.kg.write_para_vec(self.name, self.entity_embedding.eval(), 'entity', 'entity_embedding')
+        self.kg.write_para_vec(self.name, self.relation_embedding.eval(), 'relation', 'relation_embedding')
+
+        if self.name == 'transe':
+            pass
+        elif self.name == 'transd':
+            self.kg.write_para_vec(self.name, self.ent_transfer4d.eval(), 'entity', 'ent_transfer4d')
+            self.kg.write_para_vec(self.name, self.rel_transfer4d.eval(), 'relation', 'rel_transfer4d')
+        elif self.name == 'transh':
+            self.kg.write_para_vec(self.name, self.normal_vector4h.eval(), 'entity', 'normal_vector4h')
+        elif self.name == 'transr':
+            self.kg.write_para_vec(self.name, self.rel_matrix4r.eval(), 'relation', 'rel_matrix4r')
 
     def calculate_rank(self, idx_predictions):
         eval_triple, idx_head_prediction, idx_tail_prediction = idx_predictions
@@ -412,7 +429,7 @@ class TransX:
 
 
 if __name__ == '__main__':
-    name = 'transr'
+    name = 'transh'
     kg = KnowledgeGraph(data_path='data/WN18/', name=name)
     kge_model = TransX(name=name, kg=kg, embedding_dim=100, margin_value=1.0, dissimilarity_func='L2',
                        batch_size=4800,
@@ -420,7 +437,6 @@ if __name__ == '__main__':
 
     gpu_config = tf.GPUOptions(allow_growth=False)
     sess_config = tf.ConfigProto(gpu_options=gpu_config)
-    saver = tf.train.Saver()
 
     with tf.Session(config=sess_config) as sess:
         tf.global_variables_initializer().run()
@@ -429,5 +445,3 @@ if __name__ == '__main__':
             kge_model.launch_training(sess)
             if (epoch + 1) % 1 == 0:
                 kge_model.launch_evaluation(sess)
-            save_path = saver.save(sess, "saver/xxx.ckpt")
-            print("Save to path: ", save_path)

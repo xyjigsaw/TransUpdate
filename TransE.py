@@ -209,7 +209,8 @@ class TransE:
                                                          (head_hits10_filter + tail_hits10_filter) / 2))
         print('cost time: {:.3f}s'.format(timeit.default_timer() - start))
         print('-----Finish evaluation-----')
-        # self.kg.write_vec(self.entity_embedding.eval(), self.relation_embedding.eval())
+        # self.kg.write_para_vec(self.name, self.entity_embedding.eval(), 'entity', 'entity_embedding')
+        # self.kg.write_para_vec(self.name, self.relation_embedding.eval(), 'relation', 'relation_embedding')
 
     def calculate_rank(self, idx_predictions):
         eval_triple, idx_head_prediction, idx_tail_prediction = idx_predictions
