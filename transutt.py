@@ -336,15 +336,15 @@ class TransUpdate:
         head_hits10_filter /= n_used_eval_triple
         tail_meanrank_filter /= n_used_eval_triple
         tail_hits10_filter /= n_used_eval_triple
-        #print('-----Head prediction-----')
-        #print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format(head_meanrank_filter, head_hits10_filter))
-        #print('-----Tail prediction-----')
-        #print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format(tail_meanrank_filter, tail_hits10_filter))
-        #print('-----Average-----')
-        #print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format((head_meanrank_filter + tail_meanrank_filter) / 2,
+        # print('-----Head prediction-----')
+        # print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format(head_meanrank_filter, head_hits10_filter))
+        # print('-----Tail prediction-----')
+        # print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format(tail_meanrank_filter, tail_hits10_filter))
+        # print('-----Average-----')
+        # print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format((head_meanrank_filter + tail_meanrank_filter) / 2,
         #                                                 (head_hits10_filter + tail_hits10_filter) / 2))
-        #print('cost time: {:.3f}s'.format(timeit.default_timer() - start))
-        #print('-----Finish evaluation-----')
+        # print('cost time: {:.3f}s'.format(timeit.default_timer() - start))
+        # print('-----Finish evaluation-----')
         raw_res_dict = {'new_triple': n_new_triple, 'used_eval_triple': n_used_eval_triple,
                         'H_MR': head_meanrank_raw, 'H_h10': head_hits10_raw,
                         'T_MR': tail_meanrank_raw, 'T_h10': tail_hits10_raw,
@@ -610,19 +610,19 @@ class TransUpdate:
         print('------Average------')
         print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format((head_meanrank_raw + tail_meanrank_raw) / 2,
                                                          (head_hits10_raw + tail_hits10_raw) / 2))
-        #print('-----Filter-----')
+        # print('-----Filter-----')
         head_meanrank_filter /= n_used_eval_triple
         head_hits10_filter /= n_used_eval_triple
         tail_meanrank_filter /= n_used_eval_triple
         tail_hits10_filter /= n_used_eval_triple
-        #print('-----Head prediction-----')
-        #print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format(head_meanrank_filter, head_hits10_filter))
-        #print('-----Tail prediction-----')
-        #print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format(tail_meanrank_filter, tail_hits10_filter))
-        #print('-----Average-----')
-        #print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format((head_meanrank_filter + tail_meanrank_filter) / 2,
+        # print('-----Head prediction-----')
+        # print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format(head_meanrank_filter, head_hits10_filter))
+        # print('-----Tail prediction-----')
+        # print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format(tail_meanrank_filter, tail_hits10_filter))
+        # print('-----Average-----')
+        # print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format((head_meanrank_filter + tail_meanrank_filter) / 2,
         #                                                 (head_hits10_filter + tail_hits10_filter) / 2))
-        #print('cost time: {:.3f}s'.format(timeit.default_timer() - start))
+        # print('cost time: {:.3f}s'.format(timeit.default_timer() - start))
         print('-----Finish evaluation-----')
         raw_res_dict = {'new_triple': n_new_triple, 'used_eval_triple': n_used_eval_triple,
                         'H_MR': head_meanrank_raw, 'H_h10': head_hits10_raw,

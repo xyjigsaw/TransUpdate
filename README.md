@@ -1,5 +1,7 @@
 # TransUpdate
 
+Developing in progress
+
 Online Learning Framework for Updating KG embedding based on TransE, TransD, TransH and TransR.
 
 ## Main Files
