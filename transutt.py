@@ -9,8 +9,6 @@
 import timeit
 import tensorflow.compat.v1 as tf
 from KG_data import KnowledgeGraph
-from gat_layer import GraphAttentionLayer
-from layout import sparse_fruchterman_reingold
 import numpy as np
 
 tf.compat.v1.disable_eager_execution()
@@ -43,13 +41,12 @@ class TransUpdate:
         self.relation_embedding = None
         self.embedding_dim = None
 
-
-        # 评估操作
+        # online评估操作
         self.eval_triple = tf.placeholder(dtype=tf.int32, shape=[None, 3])  # 评估三元组，3行n列
         self.idx_head_prediction = None
         self.idx_tail_prediction = None
 
-        # 评估操作
+        # transX评估操作
         self.eval_triple4raw = tf.placeholder(dtype=tf.int32, shape=[None, 3])  # 评估三元组，3行n列
         self.idx_head_prediction4raw = None
         self.idx_tail_prediction4raw = None
@@ -117,7 +114,7 @@ class TransUpdate:
         p_real_neighbor = self.get_real_prob(self.sparse_neighbor_noself)
 
         # distance = p_neighbor - p_real_neighbor
-        self.loss = tf.reduce_mean(-tf.reduce_sum(tf.log(p_neighbor)*p_real_neighbor, axis=1))
+        self.loss = tf.reduce_mean(-tf.reduce_sum(tf.log(p_neighbor) * p_real_neighbor, axis=1))
 
         self.train_op = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate). \
             minimize(self.loss, global_step=self.global_step)
@@ -189,7 +186,8 @@ class TransUpdate:
                 regret_loss, _ = sess.run(fetches=[self.loss, self.train_op],
                                           feed_dict={self.triple: triple,
                                                      self.sparse_neighbor: np.array(list(neighbor_id_rel.keys())),
-                                                     self.sparse_neighbor_noself: np.array(list(neighbor_id_rel.keys())[:-1]),
+                                                     self.sparse_neighbor_noself: np.array(
+                                                         list(neighbor_id_rel.keys())[:-1]),
                                                      self.prob_e: prob_e})
                 # print('regret_loss', regret_loss)
                 epoch_loss += regret_loss
@@ -331,7 +329,7 @@ class TransUpdate:
         print('------Average------')
         print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format((head_meanrank_raw + tail_meanrank_raw) / 2,
                                                          (head_hits10_raw + tail_hits10_raw) / 2))
-        #print('-----Filter-----')
+        # print('-----Filter-----')
         head_meanrank_filter /= n_used_eval_triple
         head_hits10_filter /= n_used_eval_triple
         tail_meanrank_filter /= n_used_eval_triple
@@ -351,10 +349,10 @@ class TransUpdate:
                         'AVE_MR': (head_meanrank_raw + tail_meanrank_raw) / 2,
                         'AVE_h10': (head_hits10_raw + tail_hits10_raw) / 2}
         filter_res_dict = {'new_triple': n_new_triple, 'used_eval_triple': n_used_eval_triple,
-                        'H_MR': head_meanrank_filter, 'H_h10': head_hits10_filter,
-                        'T_MR': tail_meanrank_filter, 'T_h10': tail_hits10_filter,
-                        'AVE_MR': (head_meanrank_filter + tail_meanrank_filter) / 2,
-                        'AVE_h10': (head_hits10_filter + tail_hits10_filter) / 2}
+                           'H_MR': head_meanrank_filter, 'H_h10': head_hits10_filter,
+                           'T_MR': tail_meanrank_filter, 'T_h10': tail_hits10_filter,
+                           'AVE_MR': (head_meanrank_filter + tail_meanrank_filter) / 2,
+                           'AVE_h10': (head_hits10_filter + tail_hits10_filter) / 2}
         self.kg.result2txt('my', self.cmp_name, raw_res_dict, filter_res_dict)
 
     def calculate_rank(self, idx_predictions):
@@ -384,7 +382,6 @@ class TransUpdate:
                 else:
                     tail_rank_filter += 1
         return head_rank_raw, tail_rank_raw, head_rank_filter, tail_rank_filter
-
 
     ######## eva4
 
