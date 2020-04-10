@@ -634,7 +634,7 @@ class TransUpdate:
         self.kg.result2txt(self.cmp_name, self.cmp_name, raw_res_dict, filter_res_dict)
 
 
-kg = KnowledgeGraph(data_path='data/WN18/', name='my')
+kg = KnowledgeGraph(data_path='data/WN18/', name='my', seed=1)
 kge_model = TransUpdate(cmp_name='transr', kg=kg, dissimilarity_func='L2', learning_rate=0.01, epoch=100, eval_times=50)
 gpu_config = tf.GPUOptions(allow_growth=False)
 sess_config = tf.ConfigProto(gpu_options=gpu_config)

@@ -8,9 +8,10 @@ import scipy.sparse as sp
 
 
 class KnowledgeGraph:
-    def __init__(self, data_path, name):
+    def __init__(self, data_path, name, seed):
         self.data_path = data_path  # 数据集文件夹的路径
         self.name = name.lower()
+        self.seed = seed
 
         # 实体
         self.entity_dict = {}  # 存储所有实体信息 {'实体1': 下标1}
@@ -188,6 +189,8 @@ class KnowledgeGraph:
     # # for transUpdate
 
     def tmp_next_triple(self):
+        if self.seed:
+            random.seed(self.seed)
         random.shuffle(self.new_triple)
         while self.new_triple:
             print('FACT TRIPLE LEN: ', self.n_fact_triple, ' NEW TRIPLE LEN: ', self.n_new_triple)

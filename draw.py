@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 import os
 from matplotlib import font_manager as fm, rcParams
 
+cmp_name = 'transh'
+path = 'result0409fromServer'
 """
       'new_triple': n_new_triple, 'used_eval_triple': n_used_eval_triple,
       'H_MR': head_meanrank_raw, 'H_h10': head_hits10_raw,
@@ -30,7 +32,7 @@ ave_meanrank = []
 ave_hits10 = []
 
 
-with open("output/my_raw.txt", "r") as f:
+with open(path + '/' + cmp_name + '/' + "my_raw.txt", "r") as f:
     for line in f.readlines():
         nt, uet, hm, hh, tm, th, am, ah = line.strip('\n').split(',')
         new_triple.append(float(nt))
@@ -53,7 +55,7 @@ ave_meanrank_t = []
 ave_hits10_t = []
 
 
-with open("output/transe_raw.txt", "r") as f:
+with open(path + '/' + cmp_name + '/' + cmp_name + '_raw.txt', "r") as f:
     for line in f.readlines():
         nt, uet, hm, hh, tm, th, am, ah = line.strip('\n').split(',')
         new_triple_t.append(float(nt))
@@ -83,10 +85,10 @@ ax1.plot(new_triple, ave_meanrank, label='My', marker='+')
 ax1.plot(new_triple, ave_meanrank_t, label='transE', marker='*')
 ax1.set_xlabel('New Triples')
 ax1.set_ylabel('MeanRank')
-ax2 = ax1.twinx()
-ax2.plot(new_triple, ave_hits10, label='My', marker='+')
-ax2.plot(new_triple, ave_hits10_t, label='transE', marker='*')
-ax2.set_ylabel('Hit@10')
+#ax2 = ax1.twinx()
+#ax2.plot(new_triple, ave_hits10, label='My', marker='+')
+#ax2.plot(new_triple, ave_hits10_t, label='transE', marker='*')
+#ax2.set_ylabel('Hit@10')
 
 plt.legend()
 plt.show()
