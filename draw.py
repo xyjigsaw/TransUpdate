@@ -8,7 +8,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-from matplotlib import font_manager as fm, rcParams
 
 cmp_name = 'transr'
 path = '0411FromServer'
@@ -19,8 +18,6 @@ path = '0411FromServer'
       'AVE_MR': (head_meanrank_raw + tail_meanrank_raw) / 2,
       'AVE_h10': (head_hits10_raw + tail_hits10_raw) / 2
 """
-
-prop = fm.FontProperties(fname='times.ttf')
 
 new_triple = []
 used_eval_triple = []
