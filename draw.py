@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 import os
 from matplotlib import font_manager as fm, rcParams
 
-cmp_name = 'transh'
-path = 'result0409fromServer'
+cmp_name = 'transr'
+path = '0411FromServer'
 """
       'new_triple': n_new_triple, 'used_eval_triple': n_used_eval_triple,
       'H_MR': head_meanrank_raw, 'H_h10': head_hits10_raw,
