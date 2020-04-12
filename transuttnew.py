@@ -27,9 +27,14 @@ class TransUpdate:
         self.learning_rate = learning_rate  # 学习率
         # 初始化一个三元组
         self.triple = tf.placeholder(dtype=tf.int32, shape=[None, 3])
+
         self.sparse_neighbor = tf.placeholder(dtype=tf.int32)
         self.sparse_neighbor_noself = tf.placeholder(dtype=tf.int32)
         self.prob_e = tf.placeholder(dtype=tf.float32)
+
+        self.sparse_neighbor_tail = tf.placeholder(dtype=tf.int32)
+        self.sparse_neighbor_noself_tail = tf.placeholder(dtype=tf.int32)
+        self.prob_e_tail = tf.placeholder(dtype=tf.float32)
 
         self.train_op = None  # 训练操作，是最小化优化器的那一步 如 tf.train.AdamOptimizer().minimize()
         self.loss = None  # 损失函数
@@ -109,20 +114,30 @@ class TransUpdate:
         self.entity_embedding = tf.nn.l2_normalize(self.entity_embedding, dim=1)
         self.relation_embedding = tf.nn.l2_normalize(self.relation_embedding, dim=1)
 
-        p_neighbor = self.get_prob(self.triple, self.sparse_neighbor)
+        p_neighbor = self.get_prob(self.triple, self.sparse_neighbor, 0)
         p_real_neighbor = self.get_real_prob(self.sparse_neighbor_noself)
 
+        p_neighbor_tail = self.get_prob(self.triple, self.sparse_neighbor_tail, 2)
+        p_real_neighbor_tail = self.get_real_prob(self.sparse_neighbor_noself_tail)
+
+        # para1 = tf.shape(self.sparse_neighbor)[0]
+        # para2 = tf.shape(self.sparse_neighbor_tail)[0]
+        # sum_para = tf.add(para1, para2)
+        # para1 = tf.cast(tf.divide(para1, sum_para), dtype=tf.float32)
+        # para2 = tf.cast(tf.divide(para2, sum_para), dtype=tf.float32)
+
         # distance = p_neighbor - p_real_neighbor
-        self.loss = tf.reduce_mean(-tf.reduce_sum(tf.log(p_neighbor) * p_real_neighbor, axis=1))
+        self.loss = tf.reduce_mean(-tf.reduce_sum(tf.log(p_neighbor) * p_real_neighbor, axis=1)) + \
+                    tf.reduce_mean(-tf.reduce_sum(tf.log(p_neighbor_tail) * p_real_neighbor_tail, axis=1))
 
         self.train_op = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate). \
             minimize(self.loss, global_step=self.global_step)
 
-    def get_prob(self, triple, sparse_neighbor):
-        head = tf.nn.embedding_lookup(self.entity_embedding, triple[:, 0])
+    def get_prob(self, triple, sparse_neighbor, pos):
+        vec = tf.nn.embedding_lookup(self.entity_embedding, triple[:, pos])
         # p_h = tf.Variable(tf.zeros([1, self.kg.n_entity]), name="p_h")
         v_neighbors = tf.nn.embedding_lookup(self.entity_embedding, sparse_neighbor)
-        sum_neighbor_mat = tf.exp(tf.matmul(v_neighbors, tf.transpose(head)))
+        sum_neighbor_mat = tf.exp(tf.matmul(v_neighbors, tf.transpose(vec)))
         p_neighbor = tf.divide(sum_neighbor_mat, tf.reduce_sum(sum_neighbor_mat))  # neighbor_num * 1
         # print('sum_neighbor', sum_neighbor_mat)
         return tf.transpose(p_neighbor)
@@ -152,6 +167,7 @@ class TransUpdate:
             n_used_triple += 1
             print("=" * 20 + "TRAINING FACT {}".format(n_used_triple) + "=" * 20)
             print('triple: ', triple)
+            #  head
             neighbor_id_rel = dict()
             rel_cnt = dict()
             for i in str(self.kg.sparse_one_adj.getrow(triple[0][0]).tolil()).split('\n'):
@@ -175,10 +191,33 @@ class TransUpdate:
                 prob_e.append(rel_cnt[neighbor_id_rel[i]])
 
             prob_e = np.array(prob_e) / sum(list(rel_cnt.values()))
+            # print('neighbor_id_rel:', neighbor_id_rel)
 
-            print('neighbor_id_rel:', neighbor_id_rel)
-            # print('prob_e', prob_e)
-            # print('rel_cnt', rel_cnt)
+            #  head_tail
+            neighbor_id_rel_tail = dict()
+            rel_cnt_tail = dict()
+            for i in str(self.kg.sparse_one_adj.getrow(triple[0][2]).tolil()).split('\n'):
+                i = str(i).strip('\n')
+                try:
+                    rel_id = int(i[i.index('\t') + 1:])
+                    if rel_id == -2:
+                        rel_id = 0
+                    neighbor_id_rel_tail[int(i[i.index(', ') + 2:i.index(')')])] = rel_id
+                    if rel_id not in rel_cnt_tail.keys():
+                        rel_cnt_tail[rel_id] = 0
+                    rel_cnt_tail[rel_id] += 1
+                except Exception as e:
+                    pass
+            neighbor_id_rel_tail[triple[0][0]] = triple[0][1]
+            rel_cnt_tail[triple[0][1]] = 1
+            neighbor_id_rel_tail[triple[0][2]] = -1
+            rel_cnt_tail[-1] = 1
+            prob_e_tail = []
+            for i in list(neighbor_id_rel_tail.keys()):
+                prob_e_tail.append(rel_cnt_tail[neighbor_id_rel_tail[i]])
+
+            prob_e_tail = np.array(prob_e_tail) / sum(list(rel_cnt_tail.values()))
+            # print('neighbor_id_rel_tail:', neighbor_id_rel_tail)
 
             epoch_loss = 0
             for i in range(self.epoch):
@@ -187,7 +226,13 @@ class TransUpdate:
                                                      self.sparse_neighbor: np.array(list(neighbor_id_rel.keys())),
                                                      self.sparse_neighbor_noself: np.array(
                                                          list(neighbor_id_rel.keys())[:-1]),
-                                                     self.prob_e: prob_e})
+                                                     self.prob_e: prob_e,
+
+                                                     self.sparse_neighbor_tail:
+                                                         np.array(list(neighbor_id_rel_tail.keys())),
+                                                     self.sparse_neighbor_noself_tail:
+                                                         np.array(list(neighbor_id_rel_tail.keys())[:-1]),
+                                                     self.prob_e_tail: prob_e_tail})
                 # print('regret_loss', regret_loss)
                 epoch_loss += regret_loss
                 # print('REGRET: {:.5f}'.format(regret_loss))
@@ -328,20 +373,10 @@ class TransUpdate:
         print('------Average------')
         print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format((head_meanrank_raw + tail_meanrank_raw) / 2,
                                                          (head_hits10_raw + tail_hits10_raw) / 2))
-        # print('-----Filter-----')
         head_meanrank_filter /= n_used_eval_triple
         head_hits10_filter /= n_used_eval_triple
         tail_meanrank_filter /= n_used_eval_triple
         tail_hits10_filter /= n_used_eval_triple
-        # print('-----Head prediction-----')
-        # print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format(head_meanrank_filter, head_hits10_filter))
-        # print('-----Tail prediction-----')
-        # print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format(tail_meanrank_filter, tail_hits10_filter))
-        # print('-----Average-----')
-        # print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format((head_meanrank_filter + tail_meanrank_filter) / 2,
-        #                                                 (head_hits10_filter + tail_hits10_filter) / 2))
-        # print('cost time: {:.3f}s'.format(timeit.default_timer() - start))
-        # print('-----Finish evaluation-----')
         raw_res_dict = {'new_triple': n_new_triple, 'used_eval_triple': n_used_eval_triple,
                         'H_MR': head_meanrank_raw, 'H_h10': head_hits10_raw,
                         'T_MR': tail_meanrank_raw, 'T_h10': tail_hits10_raw,
@@ -606,19 +641,10 @@ class TransUpdate:
         print('------Average------')
         print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format((head_meanrank_raw + tail_meanrank_raw) / 2,
                                                          (head_hits10_raw + tail_hits10_raw) / 2))
-        # print('-----Filter-----')
         head_meanrank_filter /= n_used_eval_triple
         head_hits10_filter /= n_used_eval_triple
         tail_meanrank_filter /= n_used_eval_triple
         tail_hits10_filter /= n_used_eval_triple
-        # print('-----Head prediction-----')
-        # print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format(head_meanrank_filter, head_hits10_filter))
-        # print('-----Tail prediction-----')
-        # print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format(tail_meanrank_filter, tail_hits10_filter))
-        # print('-----Average-----')
-        # print('MeanRank: {:.3f}, Hits@10: {:.3f}'.format((head_meanrank_filter + tail_meanrank_filter) / 2,
-        #                                                 (head_hits10_filter + tail_hits10_filter) / 2))
-        # print('cost time: {:.3f}s'.format(timeit.default_timer() - start))
         print('-----Finish evaluation-----')
         raw_res_dict = {'new_triple': n_new_triple, 'used_eval_triple': n_used_eval_triple,
                         'H_MR': head_meanrank_raw, 'H_h10': head_hits10_raw,
@@ -634,7 +660,7 @@ class TransUpdate:
 
 
 kg = KnowledgeGraph(data_path='data/WN18/', name='my', seed=1)
-kge_model = TransUpdate(cmp_name='transr', kg=kg, dissimilarity_func='L2', learning_rate=0.01, epoch=100, eval_times=50)
+kge_model = TransUpdate(cmp_name='transr', kg=kg, dissimilarity_func='L2', learning_rate=0.01, epoch=100, eval_times=5)
 gpu_config = tf.GPUOptions(allow_growth=False)
 sess_config = tf.ConfigProto(gpu_options=gpu_config)
 

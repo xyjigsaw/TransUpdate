@@ -241,7 +241,7 @@ class TransE:
         return (head_rank_raw, tail_rank_raw, head_rank_filter, tail_rank_filter)
 
 
-kg = KnowledgeGraph(data_path='data/WN18/', name='transe')
+kg = KnowledgeGraph(data_path='../data/WN18/', name='transe')
 kge_model = TransE(kg=kg, embedding_dim=100, margin_value=1.0, dissimilarity_func='L2', batch_size=4800, learning_rate=0.001)
 
 gpu_config = tf.GPUOptions(allow_growth=False)
