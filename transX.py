@@ -384,7 +384,7 @@ class TransX:
                                                          (head_hits10_filter + tail_hits10_filter) / 2))
         print('cost time: {:.3f}s'.format(timeit.default_timer() - start))
         print('-----Finish evaluation-----')
-
+        '''
         self.kg.write_para_vec(self.name, self.entity_embedding.eval(), 'entity', 'entity_embedding')
         self.kg.write_para_vec(self.name, self.relation_embedding.eval(), 'relation', 'relation_embedding')
 
@@ -397,6 +397,7 @@ class TransX:
             self.kg.write_para_vec(self.name, self.normal_vector4h.eval(), 'entity', 'normal_vector4h')
         elif self.name == 'transr':
             self.kg.write_para_vec(self.name, self.rel_matrix4r.eval(), 'relation', 'rel_matrix4r')
+        '''
 
     def calculate_rank(self, idx_predictions):
         eval_triple, idx_head_prediction, idx_tail_prediction = idx_predictions
@@ -428,8 +429,8 @@ class TransX:
 
 
 if __name__ == '__main__':
-    name = 'transr'
-    kg = KnowledgeGraph(data_path='data/WN18/', name=name)
+    name = 'transd'
+    kg = KnowledgeGraph(data_path='data/WN18/', name=name, seed=False)
     kge_model = TransX(name=name, kg=kg, embedding_dim=100, margin_value=1.0, dissimilarity_func='L2',
                        batch_size=4800,
                        learning_rate=0.001)
