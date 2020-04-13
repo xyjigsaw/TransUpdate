@@ -39,6 +39,7 @@ class KnowledgeGraph:
         # self.one_adj = None
         self.sparse_two_adj = None
         # self.two_adj = None
+        self.use_teo_adj = False
 
         # 加载dict和triple
         self.load_dict()
@@ -270,26 +271,27 @@ class KnowledgeGraph:
         # print('$$$', self.sparse_one_adj.getrow(32626))
         # self.one_adj = self.preprocess_adj(self.sparse_one_adj)
 
-        expend_edge = dict()
-        row = list()
-        col = list()
-        temp_len = 0
-        for key, values in edge.items():
-            if key not in expend_edge.keys():
-                expend_edge[key] = set()
-            for value in values:
-                add_value = edge[value]
-                for item in add_value:
-                    if item not in values and item != key:
-                        expend_edge[key].add(item)
-                        no_len = len(expend_edge[key])
-                        if temp_len != no_len:
-                            row.append(key)
-                            col.append(item)
-                        temp_len = no_len
-        data = np.ones(len(row))
-        self.sparse_two_adj = sp.coo_matrix((data, (row, col)), shape=(total_ent_num, total_ent_num))
-        # self.two_adj = self.preprocess_adj(self.sparse_two_adj)
+        if self.use_teo_adj:
+            expend_edge = dict()
+            row = list()
+            col = list()
+            temp_len = 0
+            for key, values in edge.items():
+                if key not in expend_edge.keys():
+                    expend_edge[key] = set()
+                for value in values:
+                    add_value = edge[value]
+                    for item in add_value:
+                        if item not in values and item != key:
+                            expend_edge[key].add(item)
+                            no_len = len(expend_edge[key])
+                            if temp_len != no_len:
+                                row.append(key)
+                                col.append(item)
+                            temp_len = no_len
+            data = np.ones(len(row))
+            self.sparse_two_adj = sp.coo_matrix((data, (row, col)), shape=(total_ent_num, total_ent_num))
+            # self.two_adj = self.preprocess_adj(self.sparse_two_adj)
         print('ADJ GENERATED COST: {:.4f}s.'.format(time.time() - start))
 
     def find_used_in_test(self):

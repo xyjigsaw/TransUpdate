@@ -429,7 +429,7 @@ class TransX:
 
 
 if __name__ == '__main__':
-    name = 'transh'
+    name = 'transr'
     kg = KnowledgeGraph(data_path='data/FB15K/', name=name, seed=False)
     kge_model = TransX(name=name, kg=kg, embedding_dim=100, margin_value=1.0, dissimilarity_func='L2',
                        batch_size=4800,
