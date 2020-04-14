@@ -113,10 +113,6 @@ class KnowledgeGraph:
         self.n_test_triple = len(self.test_triple)
         print("# the number of test triple: {}".format(self.n_test_triple))
         if self.name == 'my':
-            # 事实元组
-            # self.fact_triple = []
-            # self.n_fact_triple = len(self.fact_triple)
-
             fact_path = "/train_fact.txt"
             init_fact_file = pandas.read_table(self.data_path + fact_path, header=None)
             self.fact_triple = list(zip([self.entity_dict[h] for h in init_fact_file[0]],
