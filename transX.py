@@ -318,6 +318,19 @@ class TransX:
         return idx_head_prediction, idx_tail_prediction
 
     def launch_evaluation(self, session):
+        self.kg.write_para_vec(self.name, self.entity_embedding.eval(), 'entity', 'entity_embedding')
+        self.kg.write_para_vec(self.name, self.relation_embedding.eval(), 'relation', 'relation_embedding')
+
+        if self.name == 'transe':
+            pass
+        elif self.name == 'transd':
+            self.kg.write_para_vec(self.name, self.ent_transfer4d.eval(), 'entity', 'ent_transfer4d')
+            self.kg.write_para_vec(self.name, self.rel_transfer4d.eval(), 'relation', 'rel_transfer4d')
+        elif self.name == 'transh':
+            self.kg.write_para_vec(self.name, self.normal_vector4h.eval(), 'entity', 'normal_vector4h')
+        elif self.name == 'transr':
+            self.kg.write_para_vec(self.name, self.rel_matrix4r.eval(), 'relation', 'rel_matrix4r')
+
         print('-----Start evaluation-----')
         start = timeit.default_timer()
         rank_result_queue = []
@@ -385,20 +398,6 @@ class TransX:
         print('cost time: {:.3f}s'.format(timeit.default_timer() - start))
         print('-----Finish evaluation-----')
 
-        self.kg.write_para_vec(self.name, self.entity_embedding.eval(), 'entity', 'entity_embedding')
-        self.kg.write_para_vec(self.name, self.relation_embedding.eval(), 'relation', 'relation_embedding')
-
-        if self.name == 'transe':
-            pass
-        elif self.name == 'transd':
-            self.kg.write_para_vec(self.name, self.ent_transfer4d.eval(), 'entity', 'ent_transfer4d')
-            self.kg.write_para_vec(self.name, self.rel_transfer4d.eval(), 'relation', 'rel_transfer4d')
-        elif self.name == 'transh':
-            self.kg.write_para_vec(self.name, self.normal_vector4h.eval(), 'entity', 'normal_vector4h')
-        elif self.name == 'transr':
-            self.kg.write_para_vec(self.name, self.rel_matrix4r.eval(), 'relation', 'rel_matrix4r')
-
-
     def calculate_rank(self, idx_predictions):
         eval_triple, idx_head_prediction, idx_tail_prediction = idx_predictions
         head, relation, tail = eval_triple
@@ -429,7 +428,7 @@ class TransX:
 
 
 if __name__ == '__main__':
-    name = 'transr'
+    name = 'transe'
     kg = KnowledgeGraph(data_path='data/FB15K/', name=name, seed=False)
     kge_model = TransX(name=name, kg=kg, embedding_dim=100, margin_value=1.0, dissimilarity_func='L2',
                        batch_size=4800,
@@ -440,8 +439,8 @@ if __name__ == '__main__':
 
     with tf.Session(config=sess_config) as sess:
         tf.global_variables_initializer().run()
-        for epoch in range(50):
+        for epoch in range(100):
             print('=' * 30 + '[EPOCH {}]'.format(epoch) + '=' * 30)
             kge_model.launch_training(sess)
-            if (epoch + 1) % 50 == 0:
+            if (epoch + 1) % 100 == 0:
                 kge_model.launch_evaluation(sess)
