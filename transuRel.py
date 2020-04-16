@@ -1,13 +1,13 @@
-# Name: transuttnew
+# Name: transuRel
 # Author: Reacubeth
-# Time: 2020/4/12 10:30
+# Time: 2020/4/15 18:03
 # Mail: noverfitting@gmail.com
 # Site: www.omegaxyz.com
 # *_*coding:utf-8 *_*
 
 import timeit
 import tensorflow.compat.v1 as tf
-from KG_data import KnowledgeGraph
+from KG_data2 import KnowledgeGraph
 import numpy as np
 
 tf.compat.v1.disable_eager_execution()
@@ -28,13 +28,8 @@ class TransUpdate:
         # 初始化一个三元组
         self.triple = tf.placeholder(dtype=tf.int32, shape=[None, 3])
 
-        self.sparse_neighbor = tf.placeholder(dtype=tf.int32)
         self.sparse_neighbor_noself = tf.placeholder(dtype=tf.int32)
-        self.prob_e = tf.placeholder(dtype=tf.float32)
-
-        self.sparse_neighbor_tail = tf.placeholder(dtype=tf.int32)
-        self.sparse_neighbor_noself_tail = tf.placeholder(dtype=tf.int32)
-        self.prob_e_tail = tf.placeholder(dtype=tf.float32)
+        self.neighbor_rel_noself = tf.placeholder(dtype=tf.int32)
 
         self.train_op = None  # 训练操作，是最小化优化器的那一步 如 tf.train.AdamOptimizer().minimize()
         self.loss = None  # 损失函数
@@ -114,41 +109,69 @@ class TransUpdate:
         self.entity_embedding = tf.nn.l2_normalize(self.entity_embedding, dim=1)
         self.relation_embedding = tf.nn.l2_normalize(self.relation_embedding, dim=1)
 
-        p_neighbor = self.get_prob(self.triple, self.sparse_neighbor, 0)
-        p_real_neighbor = self.get_real_prob(self.sparse_neighbor_noself)
+        p_neighbor = self.get_prob(self.triple, self.sparse_neighbor_noself, self.neighbor_rel_noself)
+        p_real_neighbor = self.get_real_prob(self.sparse_neighbor_noself, self.neighbor_rel_noself)
 
-        p_neighbor_tail = self.get_prob(self.triple, self.sparse_neighbor_tail, 2)
-        p_real_neighbor_tail = self.get_real_prob(self.sparse_neighbor_noself_tail)
-
-        # para1 = tf.shape(self.sparse_neighbor)[0]
-        # para2 = tf.shape(self.sparse_neighbor_tail)[0]
-        # sum_para = tf.add(para1, para2)
-        # para1 = tf.cast(tf.divide(para1, sum_para), dtype=tf.float32)
-        # para2 = tf.cast(tf.divide(para2, sum_para), dtype=tf.float32)
-
-        # distance = p_neighbor - p_real_neighbor
-        self.loss = tf.reduce_mean(-tf.reduce_sum(tf.log(p_neighbor) * p_real_neighbor, axis=1)) + \
-                    tf.reduce_mean(-tf.reduce_sum(tf.log(p_neighbor_tail) * p_real_neighbor_tail, axis=1))
+        self.loss = tf.reduce_mean(-tf.reduce_sum(tf.log(p_neighbor) * p_real_neighbor, axis=1))
 
         self.train_op = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate). \
             minimize(self.loss, global_step=self.global_step)
 
-    def get_prob(self, triple, sparse_neighbor, pos):
-        vec = tf.nn.embedding_lookup(self.entity_embedding, triple[:, pos])
-        # p_h = tf.Variable(tf.zeros([1, self.kg.n_entity]), name="p_h")
-        v_neighbors = tf.nn.embedding_lookup(self.entity_embedding, sparse_neighbor)
-        sum_neighbor_mat = tf.exp(tf.matmul(v_neighbors, tf.transpose(vec)))
+    def get_prob(self, triple, sparse_neighbor_noself, neighbor_rel_noself):
+        # neighbor_rel_noself
+        vec = tf.nn.embedding_lookup(self.entity_embedding, triple[:, 0])
+        v_neighbors = tf.nn.embedding_lookup(self.entity_embedding, sparse_neighbor_noself)
+        if self.cmp_name == 'transe':
+            print('Get prob transe')
+            v_neighbors = tf.matmul(v_neighbors, tf.transpose(vec))
+            pass
+        elif self.cmp_name == 'transd':
+            print('Get prob transd.')
+            vec_transd = tf.nn.embedding_lookup(self.ent_transfer4d, triple[:, 0])
+            neighbor_rel_transd = tf.nn.embedding_lookup(self.rel_transfer4d, neighbor_rel_noself)
+            neighbor_transd = tf.nn.embedding_lookup(self.ent_transfer4d, sparse_neighbor_noself)
+
+            v_neighbors = self.cal4transD(v_neighbors, neighbor_transd, neighbor_rel_transd)
+
+            vec_s = self.cal4transD(tf.tile(vec, [len(sparse_neighbor_noself), 1]),
+                                    tf.tile(vec_transd, [len(sparse_neighbor_noself), 1]),
+                                    neighbor_rel_transd)
+            v_neighbors = tf.reduce_sum(tf.multiply(v_neighbors, vec_s), 1, keep_dims=True)
+
+        elif self.cmp_name == 'transh':
+            print('Get prob transh.')
+            rel_norm = tf.nn.embedding_lookup(self.normal_vector4h, neighbor_rel_noself)
+            v_neighbors = self.cal4transH(v_neighbors, rel_norm)
+
+        sum_neighbor_mat = tf.exp(v_neighbors)
         p_neighbor = tf.divide(sum_neighbor_mat, tf.reduce_sum(sum_neighbor_mat))  # neighbor_num * 1
-        # print('sum_neighbor', sum_neighbor_mat)
         return tf.transpose(p_neighbor)
 
-    def get_real_prob(self, sparse_neighbor_noself):
+    def get_real_prob(self, sparse_neighbor_noself, neighbor_rel_noself):
         h1_neighbors = tf.nn.embedding_lookup(self.entity_embedding, sparse_neighbor_noself)
-        new_emb = [tf.reduce_mean(h1_neighbors, 0)]  # neighbor的均值即new emb
+        h1_relation = tf.nn.embedding_lookup(self.relation_embedding, neighbor_rel_noself)  # 关系
 
         v_neighbors = tf.nn.embedding_lookup(self.entity_embedding, sparse_neighbor_noself)
-        v_neighbors = tf.concat([v_neighbors, new_emb], 0)
-        sum_neighbor_mat = tf.exp(tf.matmul(v_neighbors, tf.transpose(new_emb)))
+        if self.cmp_name == 'transe':
+            print('Get prob transe')
+            h1_neighbors = h1_neighbors - h1_relation
+            new_emb = [tf.reduce_mean(h1_neighbors, 0)]  # neighbor的均值即new emb
+            v_neighbors = tf.matmul(v_neighbors, tf.transpose(new_emb))
+        elif self.cmp_name == 'transd':
+            print('Get prob transd.')
+            neighbor_transd = tf.nn.embedding_lookup(self.ent_transfer4d, sparse_neighbor_noself)
+            neighbor_rel_transd = tf.nn.embedding_lookup(self.rel_transfer4d, neighbor_rel_noself)
+            h1_neighbors = self.cal4transD(h1_neighbors, neighbor_transd, neighbor_rel_transd)
+
+            h1_neighbors = h1_neighbors - h1_relation
+            new_emb = [tf.reduce_mean(h1_neighbors, 0)]  # neighbor的均值即new emb
+
+            v_neighbors = self.cal4transD(v_neighbors, neighbor_transd, neighbor_rel_transd)
+            vec_s = tf.tile(new_emb, [len(sparse_neighbor_noself), 1])
+            v_neighbors = tf.reduce_sum(tf.multiply(v_neighbors, vec_s), 1, keep_dims=True)
+
+
+        sum_neighbor_mat = tf.exp(v_neighbors)
         p_real_neighbor = tf.divide(sum_neighbor_mat, tf.reduce_sum(sum_neighbor_mat))
         return tf.transpose(p_real_neighbor)
 
@@ -169,7 +192,6 @@ class TransUpdate:
             print('triple: ', triple)
             #  head
             neighbor_id_rel = dict()
-            rel_cnt = dict()
             for i in str(self.kg.sparse_one_adj.getrow(triple[0][0]).tolil()).split('\n'):
                 i = str(i).strip('\n')
                 try:
@@ -177,62 +199,22 @@ class TransUpdate:
                     if rel_id == -2:
                         rel_id = 0
                     neighbor_id_rel[int(i[i.index(', ') + 2:i.index(')')])] = rel_id
-                    if rel_id not in rel_cnt.keys():
-                        rel_cnt[rel_id] = 0
-                    rel_cnt[rel_id] += 1
                 except Exception as e:
                     pass
             neighbor_id_rel[triple[0][2]] = triple[0][1]
-            rel_cnt[triple[0][1]] = 1
-            neighbor_id_rel[triple[0][0]] = -1
-            rel_cnt[-1] = 1
-            prob_e = []
-            for i in list(neighbor_id_rel.keys()):
-                prob_e.append(rel_cnt[neighbor_id_rel[i]])
 
-            prob_e = np.array(prob_e) / sum(list(rel_cnt.values()))
             # print('neighbor_id_rel:', neighbor_id_rel)
-
-            #  head_tail
-            neighbor_id_rel_tail = dict()
-            rel_cnt_tail = dict()
-            for i in str(self.kg.sparse_one_adj.getrow(triple[0][2]).tolil()).split('\n'):
-                i = str(i).strip('\n')
-                try:
-                    rel_id = int(i[i.index('\t') + 1:])
-                    if rel_id == -2:
-                        rel_id = 0
-                    neighbor_id_rel_tail[int(i[i.index(', ') + 2:i.index(')')])] = rel_id
-                    if rel_id not in rel_cnt_tail.keys():
-                        rel_cnt_tail[rel_id] = 0
-                    rel_cnt_tail[rel_id] += 1
-                except Exception as e:
-                    pass
-            neighbor_id_rel_tail[triple[0][0]] = triple[0][1]
-            rel_cnt_tail[triple[0][1]] = 1
-            neighbor_id_rel_tail[triple[0][2]] = -1
-            rel_cnt_tail[-1] = 1
-            prob_e_tail = []
-            for i in list(neighbor_id_rel_tail.keys()):
-                prob_e_tail.append(rel_cnt_tail[neighbor_id_rel_tail[i]])
-
-            prob_e_tail = np.array(prob_e_tail) / sum(list(rel_cnt_tail.values()))
-            # print('neighbor_id_rel_tail:', neighbor_id_rel_tail)
+            # print('neighbor_id_rel_key:', neighbor_id_rel.keys())
+            # print('neighbor_id_rel_ls:', neighbor_id_rel.values())
 
             epoch_loss = 0
             for i in range(self.epoch):
                 regret_loss, _ = sess.run(fetches=[self.loss, self.train_op],
                                           feed_dict={self.triple: triple,
-                                                     self.sparse_neighbor: np.array(list(neighbor_id_rel.keys())),
                                                      self.sparse_neighbor_noself: np.array(
-                                                         list(neighbor_id_rel.keys())[:-1]),
-                                                     self.prob_e: prob_e,
-
-                                                     self.sparse_neighbor_tail:
-                                                         np.array(list(neighbor_id_rel_tail.keys())),
-                                                     self.sparse_neighbor_noself_tail:
-                                                         np.array(list(neighbor_id_rel_tail.keys())[:-1]),
-                                                     self.prob_e_tail: prob_e_tail})
+                                                         list(neighbor_id_rel.keys())),
+                                                     self.neighbor_rel_noself: np.array(
+                                                         list(neighbor_id_rel.values()))})
                 # print('regret_loss', regret_loss)
                 epoch_loss += regret_loss
                 # print('REGRET: {:.5f}'.format(regret_loss))
@@ -350,16 +332,16 @@ class TransUpdate:
         for i in range(n_used_eval_triple):
             head_rank_raw, tail_rank_raw, head_rank_filter, tail_rank_filter = self.calculate_rank(rank_result_queue[i])
             head_meanrank_raw += head_rank_raw
-            if head_rank_raw < 50:
+            if head_rank_raw < 10:
                 head_hits10_raw += 1
             tail_meanrank_raw += tail_rank_raw
-            if tail_rank_raw < 50:
+            if tail_rank_raw < 10:
                 tail_hits10_raw += 1
             head_meanrank_filter += head_rank_filter
-            if head_rank_filter < 50:
+            if head_rank_filter < 10:
                 head_hits10_filter += 1
             tail_meanrank_filter += tail_rank_filter
-            if tail_rank_filter < 50:
+            if tail_rank_filter < 10:
                 tail_hits10_filter += 1
         print('-----Raw-----')
         head_meanrank_raw /= n_used_eval_triple
@@ -618,16 +600,16 @@ class TransUpdate:
         for i in range(n_used_eval_triple):
             head_rank_raw, tail_rank_raw, head_rank_filter, tail_rank_filter = self.calculate_rank(rank_result_queue[i])
             head_meanrank_raw += head_rank_raw
-            if head_rank_raw < 50:
+            if head_rank_raw < 10:
                 head_hits10_raw += 1
             tail_meanrank_raw += tail_rank_raw
-            if tail_rank_raw < 50:
+            if tail_rank_raw < 10:
                 tail_hits10_raw += 1
             head_meanrank_filter += head_rank_filter
-            if head_rank_filter < 50:
+            if head_rank_filter < 10:
                 head_hits10_filter += 1
             tail_meanrank_filter += tail_rank_filter
-            if tail_rank_filter < 50:
+            if tail_rank_filter < 10:
                 tail_hits10_filter += 1
         print('-----Raw-----')
         head_meanrank_raw /= n_used_eval_triple
@@ -660,7 +642,7 @@ class TransUpdate:
 
 
 kg = KnowledgeGraph(data_path='data/FB15k/', name='my', seed=1)
-kge_model = TransUpdate(cmp_name='transr', kg=kg, dissimilarity_func='L2', learning_rate=0.01, epoch=100, eval_times=50)
+kge_model = TransUpdate(cmp_name='transe', kg=kg, dissimilarity_func='L2', learning_rate=0.01, epoch=100, eval_times=50)
 gpu_config = tf.GPUOptions(allow_growth=False)
 sess_config = tf.ConfigProto(gpu_options=gpu_config)
 

@@ -428,7 +428,7 @@ class TransX:
 
 
 if __name__ == '__main__':
-    name = 'transe'
+    name = 'transh'
     kg = KnowledgeGraph(data_path='data/FB15K/', name=name, seed=False)
     kge_model = TransX(name=name, kg=kg, embedding_dim=100, margin_value=1.0, dissimilarity_func='L2',
                        batch_size=4800,
@@ -439,8 +439,8 @@ if __name__ == '__main__':
 
     with tf.Session(config=sess_config) as sess:
         tf.global_variables_initializer().run()
-        for epoch in range(100):
+        for epoch in range(5):
             print('=' * 30 + '[EPOCH {}]'.format(epoch) + '=' * 30)
             kge_model.launch_training(sess)
-            if (epoch + 1) % 100 == 0:
+            if (epoch + 1) % 5 == 0:
                 kge_model.launch_evaluation(sess)

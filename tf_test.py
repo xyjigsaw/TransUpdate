@@ -19,6 +19,7 @@ para2 = tf.shape(b)[0]
 sum_para = tf.add(para1, para2)
 para1 = tf.divide(para1, sum_para)
 para2 = tf.divide(para2, sum_para)
+tilex = tf.tile(a, [5, 0])
 
 with tf.Session() as sess:
-    print(sess.run(para1))
+    print(sess.run(tilex))
