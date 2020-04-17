@@ -660,7 +660,7 @@ class TransUpdate:
 
 
 kg = KnowledgeGraph(data_path='data/FB15k/', name='my', seed=1)
-kge_model = TransUpdate(cmp_name='transr', kg=kg, dissimilarity_func='L2', learning_rate=0.01, epoch=100, eval_times=50)
+kge_model = TransUpdate(cmp_name='transe', kg=kg, dissimilarity_func='L2', learning_rate=0.01, epoch=100, eval_times=10)
 gpu_config = tf.GPUOptions(allow_growth=False)
 sess_config = tf.ConfigProto(gpu_options=gpu_config)
 

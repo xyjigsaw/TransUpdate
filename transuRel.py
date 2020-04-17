@@ -133,8 +133,8 @@ class TransUpdate:
 
             v_neighbors = self.cal4transD(v_neighbors, neighbor_transd, neighbor_rel_transd)
 
-            vec_s = self.cal4transD(tf.tile(vec, [len(sparse_neighbor_noself), 1]),
-                                    tf.tile(vec_transd, [len(sparse_neighbor_noself), 1]),
+            vec_s = self.cal4transD(tf.tile(vec, [tf.shape(sparse_neighbor_noself)[0], 1]),
+                                    tf.tile(vec_transd, [tf.shape(sparse_neighbor_noself)[0], 1]),
                                     neighbor_rel_transd)
             v_neighbors = tf.reduce_sum(tf.multiply(v_neighbors, vec_s), 1, keep_dims=True)
 
@@ -142,6 +142,26 @@ class TransUpdate:
             print('Get prob transh.')
             rel_norm = tf.nn.embedding_lookup(self.normal_vector4h, neighbor_rel_noself)
             v_neighbors = self.cal4transH(v_neighbors, rel_norm)
+            vec_s = self.cal4transH(tf.tile(vec, [tf.shape(sparse_neighbor_noself)[0], 1]), rel_norm)
+            v_neighbors = tf.reduce_sum(tf.multiply(v_neighbors, vec_s), 1, keep_dims=True)
+
+        elif self.cmp_name == 'transr':
+            print('Get prob transr.')
+            vec = tf.reshape(vec, [-1, self.hidden_sizeE4r, 1])
+            v_neighbors = tf.reshape(v_neighbors, [-1, self.hidden_sizeE4r, 1])
+            rel = tf.nn.embedding_lookup(self.relation_embedding, neighbor_rel_noself)
+            rel = tf.reshape(rel, [-1, self.hidden_sizeR4r])
+
+            transr_matrix = tf.reshape(tf.nn.embedding_lookup(self.rel_matrix4r, neighbor_rel_noself),
+                                       [-1, self.hidden_sizeR4r, self.hidden_sizeE4r])
+            v_neighbors = tf.nn.l2_normalize(tf.reshape(tf.matmul(transr_matrix, v_neighbors),
+                                                         [-1, self.hidden_sizeR4r]), 1)
+
+            vec_s = tf.reshape(tf.tile(tf.nn.embedding_lookup(self.entity_embedding, triple[:, 0]),
+                                       [tf.shape(sparse_neighbor_noself)[0], 1]), [-1, self.hidden_sizeE4r, 1])
+            vec_s = tf.nn.l2_normalize(tf.reshape(tf.matmul(transr_matrix, vec_s),
+                                                         [-1, self.hidden_sizeR4r]), 1)
+            v_neighbors = tf.reduce_sum(tf.multiply(v_neighbors, vec_s), 1, keep_dims=True)
 
         sum_neighbor_mat = tf.exp(v_neighbors)
         p_neighbor = tf.divide(sum_neighbor_mat, tf.reduce_sum(sum_neighbor_mat))  # neighbor_num * 1
@@ -167,8 +187,33 @@ class TransUpdate:
             new_emb = [tf.reduce_mean(h1_neighbors, 0)]  # neighbor的均值即new emb
 
             v_neighbors = self.cal4transD(v_neighbors, neighbor_transd, neighbor_rel_transd)
-            vec_s = tf.tile(new_emb, [len(sparse_neighbor_noself), 1])
+            vec_s = tf.tile(new_emb, [tf.shape(sparse_neighbor_noself)[0], 1])
             v_neighbors = tf.reduce_sum(tf.multiply(v_neighbors, vec_s), 1, keep_dims=True)
+        elif self.cmp_name == 'transh':
+            print('Get prob transh.')
+            rel_norm = tf.nn.embedding_lookup(self.normal_vector4h, neighbor_rel_noself)
+            h1_neighbors = self.cal4transH(h1_neighbors, rel_norm)
+
+            h1_neighbors = h1_neighbors - h1_relation
+            new_emb = [tf.reduce_mean(h1_neighbors, 0)]  # neighbor的均值即new emb
+
+            v_neighbors = self.cal4transH(v_neighbors, rel_norm)
+            vec_s = tf.tile(new_emb, [tf.shape(sparse_neighbor_noself)[0], 1])
+            v_neighbors = tf.reduce_sum(tf.multiply(v_neighbors, vec_s), 1, keep_dims=True)
+        elif self.cmp_name == 'transr':
+            print('Get prob transr.')
+            h1_neighbors = tf.reshape(h1_neighbors, [-1, self.hidden_sizeE4r, 1])
+            rel = tf.reshape(h1_relation, [-1, self.hidden_sizeR4r])
+            transr_matrix = tf.reshape(tf.nn.embedding_lookup(self.rel_matrix4r, neighbor_rel_noself),
+                                       [-1, self.hidden_sizeR4r, self.hidden_sizeE4r])
+
+            h1_neighbors = tf.nn.l2_normalize(tf.reshape(tf.matmul(transr_matrix, h1_neighbors),
+                                                        [-1, self.hidden_sizeR4r]), 1)
+            hx_neighbors = h1_neighbors - h1_relation
+            new_emb = [tf.reduce_mean(hx_neighbors, 0)]  # neighbor的均值即new emb
+
+            vec_s = tf.tile(new_emb, [tf.shape(sparse_neighbor_noself)[0], 1])
+            v_neighbors = tf.reduce_sum(tf.multiply(hx_neighbors, vec_s), 1, keep_dims=True)
 
 
         sum_neighbor_mat = tf.exp(v_neighbors)
@@ -222,7 +267,7 @@ class TransUpdate:
                                                                 n_used_triple,
                                                                 self.kg.n_train_triple))
             print('EPOCH LOSS (all regret single fact): {:.3f}'.format(epoch_loss))
-            print('EMB:', np.array(self.entity_embedding.eval()).sum())
+            # print('EMB:', np.array(self.entity_embedding.eval()).sum())
             self.kg.sparse_one_adj = None
             self.kg.sparse_two_adj = None
             self.kg.no_weighted_adj(self.kg.n_entity, self.kg.fact_triple)
@@ -332,16 +377,16 @@ class TransUpdate:
         for i in range(n_used_eval_triple):
             head_rank_raw, tail_rank_raw, head_rank_filter, tail_rank_filter = self.calculate_rank(rank_result_queue[i])
             head_meanrank_raw += head_rank_raw
-            if head_rank_raw < 10:
+            if head_rank_raw < 50:
                 head_hits10_raw += 1
             tail_meanrank_raw += tail_rank_raw
-            if tail_rank_raw < 10:
+            if tail_rank_raw < 50:
                 tail_hits10_raw += 1
             head_meanrank_filter += head_rank_filter
-            if head_rank_filter < 10:
+            if head_rank_filter < 50:
                 head_hits10_filter += 1
             tail_meanrank_filter += tail_rank_filter
-            if tail_rank_filter < 10:
+            if tail_rank_filter < 50:
                 tail_hits10_filter += 1
         print('-----Raw-----')
         head_meanrank_raw /= n_used_eval_triple
@@ -600,16 +645,16 @@ class TransUpdate:
         for i in range(n_used_eval_triple):
             head_rank_raw, tail_rank_raw, head_rank_filter, tail_rank_filter = self.calculate_rank(rank_result_queue[i])
             head_meanrank_raw += head_rank_raw
-            if head_rank_raw < 10:
+            if head_rank_raw < 50:
                 head_hits10_raw += 1
             tail_meanrank_raw += tail_rank_raw
-            if tail_rank_raw < 10:
+            if tail_rank_raw < 50:
                 tail_hits10_raw += 1
             head_meanrank_filter += head_rank_filter
-            if head_rank_filter < 10:
+            if head_rank_filter < 50:
                 head_hits10_filter += 1
             tail_meanrank_filter += tail_rank_filter
-            if tail_rank_filter < 10:
+            if tail_rank_filter < 50:
                 tail_hits10_filter += 1
         print('-----Raw-----')
         head_meanrank_raw /= n_used_eval_triple
@@ -642,7 +687,7 @@ class TransUpdate:
 
 
 kg = KnowledgeGraph(data_path='data/FB15k/', name='my', seed=1)
-kge_model = TransUpdate(cmp_name='transe', kg=kg, dissimilarity_func='L2', learning_rate=0.01, epoch=100, eval_times=50)
+kge_model = TransUpdate(cmp_name='transr', kg=kg, dissimilarity_func='L2', learning_rate=0.01, epoch=100, eval_times=10)
 gpu_config = tf.GPUOptions(allow_growth=False)
 sess_config = tf.ConfigProto(gpu_options=gpu_config)
 
