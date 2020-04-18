@@ -686,11 +686,13 @@ class TransUpdate:
         self.kg.result2txt(self.cmp_name, self.cmp_name, raw_res_dict, filter_res_dict)
 
 
-kg = KnowledgeGraph(data_path='data/FB15k/', name='my', seed=1)
-kge_model = TransUpdate(cmp_name='transr', kg=kg, dissimilarity_func='L2', learning_rate=0.01, epoch=100, eval_times=10)
-gpu_config = tf.GPUOptions(allow_growth=False)
-sess_config = tf.ConfigProto(gpu_options=gpu_config)
+if __name__ == '__main__':
 
-with tf.Session(config=sess_config) as sess:
-    tf.global_variables_initializer().run()
-    kge_model.launch_training(sess)
+    kg = KnowledgeGraph(data_path='data/FB15k/', name='my', seed=1)
+    kge_model = TransUpdate(cmp_name='transr', kg=kg, dissimilarity_func='L2', learning_rate=0.01, epoch=100, eval_times=10)
+    gpu_config = tf.GPUOptions(allow_growth=False)
+    sess_config = tf.ConfigProto(gpu_options=gpu_config)
+
+    with tf.Session(config=sess_config) as sess:
+        tf.global_variables_initializer().run()
+        kge_model.launch_training(sess)
