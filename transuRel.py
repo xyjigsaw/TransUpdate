@@ -24,7 +24,7 @@ class TransUpdate:
 
         self.kg = kg  # 知识图谱三元组
         self.dissimilarity_func = dissimilarity_func  # 不相似函数(稀疏函数) 一般取 L1 或 L2
-        self.learning_rate = learning_rate  # 学习率
+        self.learning_rate = learning_rate
         # 初始化一个三元组
         self.triple = tf.placeholder(dtype=tf.int32, shape=[None, 3])
 
@@ -696,3 +696,4 @@ if __name__ == '__main__':
     with tf.Session(config=sess_config) as sess:
         tf.global_variables_initializer().run()
         kge_model.launch_training(sess)
+
