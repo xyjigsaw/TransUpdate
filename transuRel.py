@@ -215,7 +215,6 @@ class TransUpdate:
             vec_s = tf.tile(new_emb, [tf.shape(sparse_neighbor_noself)[0], 1])
             v_neighbors = tf.reduce_sum(tf.multiply(hx_neighbors, vec_s), 1, keep_dims=True)
 
-
         sum_neighbor_mat = tf.exp(v_neighbors)
         p_real_neighbor = tf.divide(sum_neighbor_mat, tf.reduce_sum(sum_neighbor_mat))
         return tf.transpose(p_real_neighbor)
@@ -602,8 +601,7 @@ class TransUpdate:
                 distance_tail_prediction = new_head + new_rel - all_emb
 
         with tf.name_scope('rank4raw'):
-            if self.dissimilarity_func == 'L1':  # L1 score
-                # tf.nn.top_k 返回 input 中每行最大的 k 个数，并且返回它们所在位置的索引
+            if self.dissimilarity_func == 'L1':
                 _, idx_head_prediction = tf.nn.top_k(tf.reduce_sum(tf.abs(distance_head_prediction), axis=1),
                                                      k=self.kg.n_entity)
                 _, idx_tail_prediction = tf.nn.top_k(tf.reduce_sum(tf.abs(distance_tail_prediction), axis=1),
@@ -696,4 +694,3 @@ if __name__ == '__main__':
     with tf.Session(config=sess_config) as sess:
         tf.global_variables_initializer().run()
         kge_model.launch_training(sess)
-
