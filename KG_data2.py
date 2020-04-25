@@ -13,6 +13,8 @@ import copy
 import numpy as np
 import scipy.sparse as sp
 
+# 与KG_data.py不同之处在于此代码图是有向的
+
 
 class KnowledgeGraph:
     def __init__(self, data_path, name, seed):
@@ -150,7 +152,9 @@ class KnowledgeGraph:
 
     @staticmethod
     def normalize_adj(adj):
-        """Symmetrically normalize adjacency matrix."""
+        """
+        Symmetrically normalize adjacency matrix.
+        """
         adj = sp.coo_matrix(adj)
         row_sum = np.array(adj.sum(1))
         d_inv_sqrt = np.power(row_sum, -0.5).flatten()
@@ -175,7 +179,9 @@ class KnowledgeGraph:
         return sparse_mx
 
     def preprocess_adj(self, adj):
-        """Preprocessing of adjacency matrix for simple GCN gnn and conversion to tuple representation."""
+        """
+        Preprocessing of adjacency matrix for simple GCN gnn and conversion to tuple representation.
+        """
         adj_normalized = self.normalize_adj(adj + sp.eye(adj.shape[0]))  # 加上自环
         return self.sparse_to_tuple(adj_normalized)  # 返回元组模式
 
