@@ -1,5 +1,7 @@
 # TransUpdate
 
+![](https://img.shields.io/badge/Status-Developing-brightgreen.svg)
+
 Developing in progress
 
 Online Learning Framework for Updating KG embedding based on TransE, TransD, TransH and TransR.
