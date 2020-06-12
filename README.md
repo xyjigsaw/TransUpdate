@@ -13,5 +13,5 @@ Online Learning Framework for Updating KG embedding based on TransE, TransD, Tra
 - transRel.py: online learning with more complex neighbor aggregator
 
 ## Idea
-Optimize corss entropy between probability distribution.
+Optimize cross entropy between probability distribution.
 
