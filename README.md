@@ -2,7 +2,9 @@
 
 ![](https://img.shields.io/badge/Status-Developing-brightgreen.svg)
 
-Developing in progress
+Developing in progress.
+
+The project is part of AcaFinder.
 
 Online Learning Framework for Updating KG embedding based on TransE, TransD, TransH and TransR.
 
