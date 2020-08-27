@@ -16,3 +16,5 @@ Online Learning Framework for Updating KG embedding based on TransE, TransD, Tra
 
 ## Idea
 Optimize cross entropy among different probability distributions .
+
+![](stages.png)
